@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { colors, borderRadius, spacing } from '../../theme';
+import { useThemeStore } from '../../stores/themeStore';
+import { getPresetColors } from '../../theme/presets';
 
 interface CardProps {
     children: React.ReactNode;
@@ -9,8 +11,24 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ children, style, variant = 'default' }) => {
+    const { preset } = useThemeStore();
+    const presetAccent = getPresetColors(preset);
+
     return (
-        <View style={[styles.base, variantStyles[variant], style]}>
+        <View
+            style={[
+                styles.base,
+                variantStyles[variant],
+                variant === 'glow'
+                    ? {
+                        shadowColor: presetAccent.primary,
+                        shadowOpacity: 0.18,
+                        borderWidth: 0,
+                    }
+                    : null,
+                style,
+            ]}
+        >
             {children}
         </View>
     );
@@ -18,22 +36,21 @@ export const Card: React.FC<CardProps> = ({ children, style, variant = 'default'
 
 const variantStyles: Record<string, ViewStyle> = {
     default: {
-        backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.border,
+        backgroundColor: colors.glass,
+        borderWidth: 0,
     },
     glow: {
-        backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: 'rgba(0, 229, 199, 0.2)',
+        backgroundColor: colors.glass,
+        borderWidth: 0,
         shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 8,
+        shadowOpacity: 0.22,
+        shadowRadius: 26,
+        elevation: 10,
     },
     flat: {
-        backgroundColor: colors.surface,
+        backgroundColor: colors.glass,
+        borderWidth: 0,
     },
 };
 
@@ -41,5 +58,10 @@ const styles = StyleSheet.create({
     base: {
         borderRadius: borderRadius.xl,
         padding: spacing.lg,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 14 },
+        shadowOpacity: 0.26,
+        shadowRadius: 22,
+        elevation: 10,
     },
 });

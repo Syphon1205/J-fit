@@ -1,44 +1,69 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { useAuthStore } from '../../src/stores/authStore';
 
 export default function LoginScreen() {
-    const router = useRouter();
-    const { loginWithGoogle, loginWithApple } = useAuthStore();
-    const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
+    const { loginWithGoogle, loginWithApple, loginWithGithub, continueAsGuest, initDeviceIdentity, authError } = useAuthStore();
+    const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'github' | 'guest' | null>(null);
+    const fade = useRef(new Animated.Value(0)).current;
+    const rise = useRef(new Animated.Value(20)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fade, { toValue: 1, duration: 450, useNativeDriver: true }),
+            Animated.timing(rise, { toValue: 0, duration: 450, useNativeDriver: true }),
+        ]).start();
+
+        initDeviceIdentity();
+    }, [fade, rise]);
 
     const handleGoogle = async () => {
         setSocialLoading('google');
         await loginWithGoogle();
         setSocialLoading(null);
-        const { isAuthenticated } = useAuthStore.getState();
-        if (isAuthenticated) router.replace('/(tabs)');
     };
 
     const handleApple = async () => {
         setSocialLoading('apple');
         await loginWithApple();
         setSocialLoading(null);
-        const { isAuthenticated } = useAuthStore.getState();
-        if (isAuthenticated) router.replace('/(tabs)');
+    };
+
+    const handleGithub = async () => {
+        setSocialLoading('github');
+        await loginWithGithub();
+        setSocialLoading(null);
+    };
+
+    const handleGuest = async () => {
+        setSocialLoading('guest');
+        await continueAsGuest();
+        setSocialLoading(null);
     };
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.content}>
+            <Animated.View style={[styles.animatedShell, { opacity: fade, transform: [{ translateY: rise }] }]}>
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.content}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    contentInsetAdjustmentBehavior="automatic"
+                    bounces
+                >
                 {/* Logo */}
                 <View style={styles.logoSection}>
                     <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logoCircle}>
                         <Ionicons name="fitness" size={36} color={colors.textInverse} />
                     </LinearGradient>
-                    <Text style={styles.appName}>J-Fit</Text>
+                    <Text style={styles.appName}>Cunningham Fitness</Text>
                     <Text style={styles.tagline}>Your fitness journey starts here</Text>
                 </View>
 
@@ -55,19 +80,35 @@ export default function LoginScreen() {
                             ? <ActivityIndicator color="#fff" size="small" />
                             : <><Ionicons name="logo-apple" size={20} color="#fff" /><Text style={styles.appleBtnText}>Continue with Apple</Text></>}
                     </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.githubBtn} onPress={handleGithub} activeOpacity={0.85}>
+                        {socialLoading === 'github'
+                            ? <ActivityIndicator color="#fff" size="small" />
+                            : <><Ionicons name="logo-github" size={20} color="#fff" /><Text style={styles.githubBtnText}>Continue with GitHub</Text></>}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.guestBtn} onPress={handleGuest} activeOpacity={0.85}>
+                        {socialLoading === 'guest'
+                            ? <ActivityIndicator color={colors.textPrimary} size="small" />
+                            : <><Ionicons name="person-outline" size={20} color={colors.textPrimary} /><Text style={styles.guestBtnText}>Continue as Guest</Text></>}
+                    </TouchableOpacity>
                 </View>
 
                 <Text style={styles.disclaimer}>
                     By continuing, you agree to our Terms of Service and Privacy Policy
                 </Text>
-            </View>
+                {!!authError && <Text style={styles.authError}>{authError}</Text>}
+                </ScrollView>
+            </Animated.View>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { flex: 1, paddingHorizontal: spacing.xxl, justifyContent: 'center', paddingVertical: spacing.xxxl },
+    animatedShell: { flex: 1 },
+    scroll: { flex: 1 },
+    content: { flexGrow: 1, paddingHorizontal: spacing.xxl, justifyContent: 'center', paddingVertical: spacing.xxxl },
     logoSection: { alignItems: 'center', marginBottom: spacing.xxxxl },
     logoCircle: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
     appName: { ...typography.display, color: colors.textPrimary },
@@ -83,7 +124,21 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md,
         backgroundColor: '#1D1D1F', borderRadius: borderRadius.lg, paddingVertical: 16,
         borderWidth: 1, borderColor: colors.border,
+        marginBottom: spacing.md,
     },
     appleBtnText: { ...typography.bodyBold, color: '#fff' },
+    githubBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md,
+        backgroundColor: '#24292e', borderRadius: borderRadius.lg, paddingVertical: 16,
+        borderWidth: 1, borderColor: '#3a3f45', marginBottom: spacing.md,
+    },
+    githubBtnText: { ...typography.bodyBold, color: '#fff' },
+    guestBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md,
+        backgroundColor: colors.surface, borderRadius: borderRadius.lg, paddingVertical: 16,
+        borderWidth: 1, borderColor: colors.border,
+    },
+    guestBtnText: { ...typography.bodyBold, color: colors.textPrimary },
     disclaimer: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', paddingHorizontal: spacing.md },
+    authError: { ...typography.caption, color: colors.error, textAlign: 'center', marginTop: spacing.sm },
 });

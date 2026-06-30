@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { appStorage } from '../utils/Storage';
 
 export interface Meal {
     id: string;
@@ -29,6 +31,18 @@ export interface LogMealItemInput {
     fat: number;
 }
 
+export interface MealRecommendation {
+    id: string;
+    title: string;
+    timing: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    reason: string;
+    items: string[];
+}
+
 interface NutritionState {
     weeklyPlan: DayMeals[];
     dailyGoals: {
@@ -40,11 +54,39 @@ interface NutritionState {
     };
     waterIntake: number;
     selectedDay: number;
+    lastDailyResetDate: string;
+    lastWeeklyResetKey: string;
     setSelectedDay: (day: number) => void;
     addWater: () => void;
     logMealItem: (item: LogMealItemInput) => void;
+    resetDailyIfNeeded: () => void;
+    setDailyGoals: (goals: Partial<NutritionState['dailyGoals']>) => void;
     reset: () => void;
 }
+
+const getTodayIndex = () => new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+const getDateKey = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+const getWeekKey = (date = new Date()) => {
+    const current = new Date(date);
+    const mondayOffset = (current.getDay() + 6) % 7;
+    current.setDate(current.getDate() - mondayOffset);
+    current.setHours(0, 0, 0, 0);
+    return getDateKey(current);
+};
+
+const emptyWeeklyPlan = () => weeklyMealPlan.map((day) => ({
+    ...day,
+    meals: [],
+    totalCalories: 0,
+    totalProtein: 0,
+    totalCarbs: 0,
+    totalFat: 0,
+}));
 
 const weeklyMealPlan: DayMeals[] = [
     {
@@ -119,8 +161,8 @@ const weeklyMealPlan: DayMeals[] = [
     },
 ];
 
-export const useNutritionStore = create<NutritionState>((set) => ({
-    weeklyPlan: weeklyMealPlan,
+export const useNutritionStore = create<NutritionState>()(persist((set) => ({
+    weeklyPlan: emptyWeeklyPlan(),
     dailyGoals: {
         calories: 2000,
         protein: 140,
@@ -128,8 +170,10 @@ export const useNutritionStore = create<NutritionState>((set) => ({
         fat: 65,
         water: 8,
     },
-    waterIntake: 5,
-    selectedDay: new Date().getDay() === 0 ? 6 : new Date().getDay() - 1,
+    waterIntake: 0,
+    selectedDay: getTodayIndex(),
+    lastDailyResetDate: getDateKey(),
+    lastWeeklyResetKey: getWeekKey(),
 
     setSelectedDay: (day: number) => set({ selectedDay: day }),
 
@@ -140,8 +184,15 @@ export const useNutritionStore = create<NutritionState>((set) => ({
 
     logMealItem: (item: LogMealItemInput) =>
         set((state) => {
-            const dayIndex = state.selectedDay;
-            const updated = state.weeklyPlan.map((day, idx) => {
+            const todayKey = getDateKey();
+            const weekKey = getWeekKey();
+            const needsWeeklyReset = state.lastWeeklyResetKey !== weekKey;
+            const needsDailyReset = state.lastDailyResetDate !== todayKey;
+            const selectedDay = getTodayIndex();
+            const baseWeeklyPlan = needsWeeklyReset ? emptyWeeklyPlan() : state.weeklyPlan;
+            const dayIndex = needsDailyReset ? selectedDay : state.selectedDay;
+
+            const updated = baseWeeklyPlan.map((day, idx) => {
                 if (idx !== dayIndex) return day;
                 const existingMeal = day.meals.find((m) => m.name === item.mealType);
                 let updatedMeals: Meal[];
@@ -163,12 +214,54 @@ export const useNutritionStore = create<NutritionState>((set) => ({
                     totalFat: day.totalFat + item.fat,
                 };
             });
-            return { weeklyPlan: updated };
+            return {
+                weeklyPlan: updated,
+                waterIntake: needsDailyReset ? 0 : state.waterIntake,
+                selectedDay: dayIndex,
+                lastDailyResetDate: todayKey,
+                lastWeeklyResetKey: weekKey,
+            };
         }),
+
+    resetDailyIfNeeded: () =>
+        set((state) => {
+            const todayKey = getDateKey();
+            const weekKey = getWeekKey();
+            const selectedDay = getTodayIndex();
+
+            if (state.lastWeeklyResetKey !== weekKey) {
+                return {
+                    weeklyPlan: emptyWeeklyPlan(),
+                    waterIntake: 0,
+                    selectedDay,
+                    lastDailyResetDate: todayKey,
+                    lastWeeklyResetKey: weekKey,
+                };
+            }
+
+            if (state.lastDailyResetDate !== todayKey) {
+                return {
+                    waterIntake: 0,
+                    selectedDay,
+                    lastDailyResetDate: todayKey,
+                    lastWeeklyResetKey: weekKey,
+                };
+            }
+
+            return { selectedDay };
+        }),
+
+    setDailyGoals: (goals) =>
+        set((state) => ({
+            dailyGoals: { ...state.dailyGoals, ...goals },
+        })),
 
     reset: () =>
         set((state) => ({
             waterIntake: 0,
+            selectedDay: getTodayIndex(),
+            lastDailyResetDate: getDateKey(),
+            lastWeeklyResetKey: getWeekKey(),
             weeklyPlan: state.weeklyPlan.map((day) => ({
                 ...day,
                 totalCalories: 0,
@@ -178,4 +271,126 @@ export const useNutritionStore = create<NutritionState>((set) => ({
                 meals: [],
             })),
         })),
+}), {
+    name: 'jfit-nutrition',
+    storage: createJSONStorage(() => appStorage),
+    partialize: (state) => ({
+        weeklyPlan: state.weeklyPlan,
+        dailyGoals: state.dailyGoals,
+        waterIntake: state.waterIntake,
+        selectedDay: state.selectedDay,
+        lastDailyResetDate: state.lastDailyResetDate,
+        lastWeeklyResetKey: state.lastWeeklyResetKey,
+    }),
 }));
+
+export function getMealRecommendations(
+    fitnessGoal: 'lose_weight' | 'build_muscle' | 'stay_fit' | 'improve_endurance' = 'stay_fit',
+    day: DayMeals,
+    goals: NutritionState['dailyGoals']
+): MealRecommendation[] {
+    const remainingProtein = Math.max(0, goals.protein - day.totalProtein);
+    const remainingCarbs = Math.max(0, goals.carbs - day.totalCarbs);
+    const remainingCalories = Math.max(0, goals.calories - day.totalCalories);
+
+    const plans: Record<typeof fitnessGoal, MealRecommendation[]> = {
+        lose_weight: [
+            {
+                id: 'lean-protein-bowl',
+                title: 'Lean Protein Bowl',
+                timing: 'Next meal',
+                calories: Math.min(520, Math.max(360, remainingCalories || 440)),
+                protein: Math.min(48, Math.max(34, remainingProtein || 40)),
+                carbs: 32,
+                fat: 12,
+                reason: 'Keeps calories controlled while protecting lean mass.',
+                items: ['grilled chicken', 'roasted vegetables', 'cauliflower rice', 'salsa verde'],
+            },
+            {
+                id: 'greek-yogurt-crunch',
+                title: 'Greek Yogurt Crunch',
+                timing: 'Snack',
+                calories: 240,
+                protein: 28,
+                carbs: 22,
+                fat: 5,
+                reason: 'High-protein snack to reduce late-day hunger.',
+                items: ['plain Greek yogurt', 'berries', 'chia', 'small granola topper'],
+            },
+        ],
+        build_muscle: [
+            {
+                id: 'hypertrophy-rice-plate',
+                title: 'Hypertrophy Rice Plate',
+                timing: 'Post-workout',
+                calories: Math.min(780, Math.max(560, remainingCalories || 650)),
+                protein: Math.min(55, Math.max(42, remainingProtein || 48)),
+                carbs: Math.min(95, Math.max(60, remainingCarbs || 78)),
+                fat: 16,
+                reason: 'Protein plus fast glycogen support for muscle gain.',
+                items: ['lean beef', 'jasmine rice', 'pineapple', 'spinach', 'teriyaki glaze'],
+            },
+            {
+                id: 'casein-oats',
+                title: 'Casein Oats',
+                timing: 'Evening',
+                calories: 430,
+                protein: 38,
+                carbs: 46,
+                fat: 10,
+                reason: 'Slow protein before bed supports recovery.',
+                items: ['casein protein', 'oats', 'banana', 'peanut butter'],
+            },
+        ],
+        improve_endurance: [
+            {
+                id: 'tempo-fuel-wrap',
+                title: 'Tempo Fuel Wrap',
+                timing: 'Pre-run',
+                calories: Math.min(620, Math.max(440, remainingCalories || 520)),
+                protein: 32,
+                carbs: Math.min(88, Math.max(56, remainingCarbs || 68)),
+                fat: 11,
+                reason: 'Higher carbs without heaviness before endurance work.',
+                items: ['turkey', 'whole-grain wrap', 'rice', 'banana', 'honey yogurt'],
+            },
+            {
+                id: 'recovery-smoothie',
+                title: 'Recovery Smoothie',
+                timing: 'After cardio',
+                calories: 360,
+                protein: 30,
+                carbs: 48,
+                fat: 6,
+                reason: 'Restores glycogen and fluids after sweat loss.',
+                items: ['whey protein', 'berries', 'banana', 'electrolytes', 'low-fat milk'],
+            },
+        ],
+        stay_fit: [
+            {
+                id: 'balanced-training-plate',
+                title: 'Balanced Training Plate',
+                timing: 'Next meal',
+                calories: Math.min(620, Math.max(460, remainingCalories || 540)),
+                protein: Math.min(45, Math.max(32, remainingProtein || 38)),
+                carbs: Math.min(70, Math.max(42, remainingCarbs || 54)),
+                fat: 16,
+                reason: 'Balanced macros to keep energy stable.',
+                items: ['salmon', 'sweet potato', 'green beans', 'olive oil', 'citrus'],
+            },
+            {
+                id: 'protein-anchor-snack',
+                title: 'Protein Anchor Snack',
+                timing: 'Snack',
+                calories: 280,
+                protein: 26,
+                carbs: 24,
+                fat: 8,
+                reason: 'Closes the protein gap without overshooting calories.',
+                items: ['cottage cheese', 'berries', 'almonds'],
+            },
+        ],
+    };
+
+    return plans[fitnessGoal];
+}

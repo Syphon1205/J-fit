@@ -6,54 +6,143 @@ import {
     TouchableOpacity,
     Dimensions,
     ScrollView,
+    AppState,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import Svg, { Circle } from 'react-native-svg';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
-import { Card, Button } from '../../src/components/ui';
+import { BackButton, Card, Button } from '../../src/components/ui';
 import { useWorkoutStore } from '../../src/stores/workoutStore';
+import { safeBack } from '../../src/utils/navigation';
+import { mediumImpact } from '../../src/utils/haptics';
 
 const { width } = Dimensions.get('window');
 
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
+
 export default function WorkoutTimerScreen() {
     const router = useRouter();
-    const { activeWorkout, timer, completeExercise, endWorkout } = useWorkoutStore();
+    const { activeWorkout, completeExercise, endWorkout } = useWorkoutStore();
     const [elapsed, setElapsed] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [isResting, setIsResting] = useState(false);
     const [restTime, setRestTime] = useState(0);
+    const [restDuration, setRestDuration] = useState(0);
     const [currentExIdx, setCurrentExIdx] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const startAtRef = useRef<number>(Date.now());
+    const pausedAtRef = useRef<number | null>(null);
+    const pausedMsRef = useRef<number>(0);
+    const restEndAtRef = useRef<number | null>(null);
+    const appStateRef = useRef(AppState.currentState);
+    const restNotificationIdRef = useRef<string | null>(null);
+
+    const cancelRestNotification = async () => {
+        if (restNotificationIdRef.current) {
+            await Notifications.cancelScheduledNotificationAsync(restNotificationIdRef.current);
+            restNotificationIdRef.current = null;
+        }
+    };
+
+    const scheduleRestDoneNotification = async (seconds: number, nextExerciseName: string) => {
+        await cancelRestNotification();
+        if (seconds <= 0) return;
+        restNotificationIdRef.current = await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'Rest complete',
+                body: `Up next: ${nextExerciseName}`,
+                sound: true,
+            },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds,
+            },
+        });
+    };
+
+    const recalculateTimer = () => {
+        const now = Date.now();
+        const pausedSnapshot = pausedMsRef.current + (isPaused && pausedAtRef.current ? now - pausedAtRef.current : 0);
+        const elapsedSecs = Math.max(0, Math.floor((now - startAtRef.current - pausedSnapshot) / 1000));
+        setElapsed(elapsedSecs);
+
+        if (isResting && restEndAtRef.current) {
+            const remaining = Math.max(0, Math.ceil((restEndAtRef.current - now) / 1000));
+            setRestTime(remaining);
+            if (remaining <= 0) {
+                restEndAtRef.current = null;
+                setIsResting(false);
+                setRestDuration(0);
+                restNotificationIdRef.current = null;
+            }
+        }
+    };
 
     useEffect(() => {
+        recalculateTimer();
         if (!isPaused) {
-            intervalRef.current = setInterval(() => {
-                if (isResting) {
-                    setRestTime((prev) => {
-                        if (prev <= 1) {
-                            setIsResting(false);
-                            return 0;
-                        }
-                        return prev - 1;
-                    });
-                } else {
-                    setElapsed((prev) => prev + 1);
-                }
-            }, 1000);
+            intervalRef.current = setInterval(recalculateTimer, 500);
         }
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
     }, [isPaused, isResting]);
 
+    useEffect(() => {
+        const configureNotifications = async () => {
+            if (Platform.OS === 'android') {
+                await Notifications.setNotificationChannelAsync('default', {
+                    name: 'default',
+                    importance: Notifications.AndroidImportance.HIGH,
+                    vibrationPattern: [0, 250, 250, 250],
+                });
+            }
+
+            const { status } = await Notifications.getPermissionsAsync();
+            if (status !== 'granted') {
+                await Notifications.requestPermissionsAsync();
+            }
+        };
+
+        configureNotifications();
+
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+            if (wasBackground && nextState === 'active') {
+                recalculateTimer();
+            }
+            appStateRef.current = nextState;
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [isPaused, isResting]);
+
+    useEffect(() => {
+        return () => {
+            cancelRestNotification();
+        };
+    }, []);
+
     if (!activeWorkout) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.center}>
                     <Text style={styles.noWorkout}>No active workout</Text>
-                    <Button title="Go Back" onPress={() => router.back()} variant="secondary" />
+                    <Button title="Go Back" onPress={() => safeBack(router, '/workouts')} variant="secondary" />
                 </View>
             </SafeAreaView>
         );
@@ -69,18 +158,25 @@ export default function WorkoutTimerScreen() {
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
-    const handleCompleteExercise = () => {
+    const handleCompleteExercise = async () => {
+        await mediumImpact();
         completeExercise(currentExIdx);
         if (currentExIdx < exercises.length - 1) {
+            const nextExercise = exercises[currentExIdx + 1];
             setIsResting(true);
             setRestTime(currentEx.restTime);
+            setRestDuration(currentEx.restTime);
+            restEndAtRef.current = Date.now() + currentEx.restTime * 1000;
+            scheduleRestDoneNotification(currentEx.restTime, nextExercise.name);
             setCurrentExIdx(currentExIdx + 1);
         }
     };
 
-    const handleFinish = () => {
-        endWorkout();
-        router.back();
+    const handleFinish = async () => {
+        await mediumImpact();
+        cancelRestNotification();
+        endWorkout(elapsed);
+        safeBack(router, '/workouts');
     };
 
     const ringSize = width * 0.65;
@@ -88,16 +184,14 @@ export default function WorkoutTimerScreen() {
     const radius = (ringSize - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
     const timerProgress = isResting
-        ? restTime / (currentEx?.restTime || 60)
+        ? Math.max(0, Math.min(1, restTime / Math.max(1, restDuration || currentEx?.restTime || 60)))
         : progress;
 
     return (
         <SafeAreaView style={styles.container}>
             {/* Top bar */}
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-                    <Ionicons name="close" size={24} color={colors.textPrimary} />
-                </TouchableOpacity>
+                <BackButton fallback="/workouts" />
                 <Text style={styles.workoutTitle}>{activeWorkout.name}</Text>
                 <View style={{ width: 40 }} />
             </View>
@@ -135,7 +229,7 @@ export default function WorkoutTimerScreen() {
                             <>
                                 <Text style={styles.restLabel}>REST</Text>
                                 <Text style={styles.timerText}>{formatTime(restTime)}</Text>
-                                <TouchableOpacity onPress={() => { setIsResting(false); setRestTime(0); }}>
+                                <TouchableOpacity onPress={() => { setIsResting(false); setRestTime(0); setRestDuration(0); restEndAtRef.current = null; cancelRestNotification(); }}>
                                     <Text style={styles.skipRest}>Skip →</Text>
                                 </TouchableOpacity>
                             </>
@@ -185,7 +279,18 @@ export default function WorkoutTimerScreen() {
                 <View style={styles.controls}>
                     <TouchableOpacity
                         style={styles.controlBtn}
-                        onPress={() => setIsPaused(!isPaused)}
+                        onPress={() => {
+                            setIsPaused((prev) => {
+                                const next = !prev;
+                                if (next) {
+                                    pausedAtRef.current = Date.now();
+                                } else if (pausedAtRef.current) {
+                                    pausedMsRef.current += Date.now() - pausedAtRef.current;
+                                    pausedAtRef.current = null;
+                                }
+                                return next;
+                            });
+                        }}
                     >
                         <Ionicons
                             name={isPaused ? 'play' : 'pause'}
@@ -245,11 +350,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.sm,
-    },
-    closeBtn: {
-        width: 40, height: 40, borderRadius: 20,
-        backgroundColor: colors.surface,
-        alignItems: 'center', justifyContent: 'center',
     },
     workoutTitle: { ...typography.bodyBold, color: colors.textPrimary },
     content: { paddingHorizontal: spacing.xl, alignItems: 'center' },

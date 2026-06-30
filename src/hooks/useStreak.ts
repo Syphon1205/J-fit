@@ -43,7 +43,25 @@ export function useStreak() {
         }
     }
 
-    const longestStreak = Math.max(streak, logDates.length > 0 ? 21 : 0); // sample longest
+    let longestStreak = 0;
+    let currentRun = 0;
+    const sortedAsc = [...logDates].sort();
+    for (let i = 0; i < sortedAsc.length; i++) {
+        if (i === 0) {
+            currentRun = 1;
+            longestStreak = 1;
+            continue;
+        }
+        const prev = new Date(sortedAsc[i - 1]);
+        const curr = new Date(sortedAsc[i]);
+        const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) {
+            currentRun += 1;
+        } else {
+            currentRun = 1;
+        }
+        if (currentRun > longestStreak) longestStreak = currentRun;
+    }
 
     return {
         streak,

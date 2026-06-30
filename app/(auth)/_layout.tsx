@@ -1,8 +1,23 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { colors } from '../../src/theme';
+import { useAuthStore } from '../../src/stores/authStore';
 
 export default function AuthLayout() {
+    const { isAuthenticated, onboardingCompleted, hasHydrated } = useAuthStore();
+
+    if (!hasHydrated) {
+        return null;
+    }
+
+    if (isAuthenticated && onboardingCompleted) {
+        return <Redirect href="/(tabs)" />;
+    }
+
+    if (isAuthenticated && !onboardingCompleted) {
+        return <Redirect href="/onboarding/welcome" />;
+    }
+
     return (
         <Stack
             screenOptions={{

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { appStorage } from '../utils/Storage';
 import { useWorkoutStore } from './workoutStore';
 
 export interface Challenge {
@@ -23,6 +25,7 @@ interface ChallengesState {
     joinChallenge: (id: string) => void;
     updateProgress: (id: string, progress: number) => void;
     refreshProgress: () => void;
+    reset: () => void;
 }
 
 const today = new Date();
@@ -93,8 +96,8 @@ const defaultChallenges: Challenge[] = [
         duration: 'monthly',
         startDate: fmt(today),
         endDate: fmt(monthEnd),
-        progress: 21, // already done from sample logs!
-        completed: true,
+        progress: 0,
+        completed: false,
         reward: '🥇 Monthly Champion Badge',
     },
     {
@@ -109,7 +112,7 @@ const defaultChallenges: Challenge[] = [
         duration: 'weekly',
         startDate: fmt(today),
         endDate: fmt(weekEnd),
-        progress: 1,
+        progress: 0,
         completed: false,
         reward: '🏅 Rise & Grind Badge',
     },
@@ -125,14 +128,16 @@ const defaultChallenges: Challenge[] = [
         duration: 'monthly',
         startDate: fmt(today),
         endDate: fmt(monthEnd),
-        progress: 5,
+        progress: 0,
         completed: false,
         reward: '🏅 Precision Badge',
     },
 ];
 
-export const useChallengesStore = create<ChallengesState>((set, get) => ({
-    challenges: defaultChallenges,
+const buildDefaultChallenges = () => defaultChallenges.map((c) => ({ ...c }));
+
+export const useChallengesStore = create<ChallengesState>()(persist((set, get) => ({
+    challenges: buildDefaultChallenges(),
 
     joinChallenge: (id) => {
         set((state) => ({
@@ -188,4 +193,12 @@ export const useChallengesStore = create<ChallengesState>((set, get) => ({
             }),
         }));
     },
+
+    reset: () => set({ challenges: buildDefaultChallenges() }),
+}), {
+    name: 'jfit-challenges',
+    storage: createJSONStorage(() => appStorage),
+    partialize: (state) => ({
+        challenges: state.challenges,
+    }),
 }));

@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { Card, Button } from '../../src/components/ui';
 import { useWorkoutStore } from '../../src/stores/workoutStore';
+import { safeBack } from '../../src/utils/navigation';
 
 export default function WorkoutDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,6 +22,16 @@ export default function WorkoutDetailScreen() {
 
     const workout = workouts.find((w) => w.id === id);
     if (!workout) return null;
+
+    const preferredExercise = workout.exercises.some((exercise) => exercise.name.toLowerCase().includes('push'))
+        ? 'pushups'
+        : workout.exercises.some((exercise) => exercise.name.toLowerCase().includes('squat'))
+            ? 'squats'
+            : workout.exercises.some((exercise) => exercise.name.toLowerCase().includes('lunge'))
+                ? 'lunges'
+                : workout.exercises.some((exercise) => exercise.name.toLowerCase().includes('plank'))
+                    ? 'plank'
+                    : 'burpees';
 
     const handleStart = () => {
         startWorkout(workout);
@@ -31,7 +42,7 @@ export default function WorkoutDetailScreen() {
         <SafeAreaView style={styles.container}>
             {/* Header with back button */}
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => safeBack(router, '/workouts')} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.moreBtn}>
@@ -69,6 +80,25 @@ export default function WorkoutDetailScreen() {
                     </View>
                 </LinearGradient>
 
+                <Card style={styles.videoCard}>
+                    <View style={styles.videoCardHeader}>
+                        <View>
+                            <Text style={styles.videoCardTitle}>Trainer videos</Text>
+                            <Text style={styles.videoCardSub}>Watch guided movement videos for this workout.</Text>
+                        </View>
+                        <View style={styles.videoPill}>
+                            <Ionicons name="videocam" size={14} color={colors.primary} />
+                            <Text style={styles.videoPillText}>New</Text>
+                        </View>
+                    </View>
+                    <Button
+                        title="Open video library"
+                        onPress={() => router.push('/workout/trainer-videos')}
+                        variant="secondary"
+                        size="md"
+                    />
+                </Card>
+
                 {/* Exercises */}
                 <Text style={styles.sectionTitle}>Exercises ({workout.exercises.length})</Text>
                 {workout.exercises.map((ex, i) => (
@@ -96,11 +126,18 @@ export default function WorkoutDetailScreen() {
                     </Card>
                 ))}
 
-                <View style={{ height: 100 }} />
+                <View style={{ height: 190 }} />
             </ScrollView>
 
             {/* Fixed Start Button */}
             <View style={styles.startBar}>
+                <Button
+                    title="Record & Score"
+                    onPress={() => router.push(`/workout/record?exercise=${preferredExercise}`)}
+                    variant="secondary"
+                    size="lg"
+                    style={{ flex: 1 }}
+                />
                 <Button title="Start Workout" onPress={handleStart} size="lg" style={{ flex: 1 }} />
             </View>
         </SafeAreaView>
@@ -131,7 +168,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    content: { paddingHorizontal: spacing.xl },
+    content: { paddingHorizontal: spacing.xl, paddingBottom: 210 },
     hero: {
         borderRadius: borderRadius.xl,
         padding: spacing.xxl,
@@ -148,7 +185,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginBottom: spacing.lg,
     },
-    heroName: { ...typography.h1, color: colors.textPrimary, textAlign: 'center' },
+    heroName: { color: colors.textPrimary, textAlign: 'center', fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.5 },
     heroMeta: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -158,7 +195,21 @@ const styles = StyleSheet.create({
     heroMetaItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     heroMetaText: { ...typography.subhead, color: colors.textSecondary },
     heroDivider: { width: 1, height: 16, backgroundColor: colors.border },
-    sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
+    videoCard: { marginBottom: spacing.xl },
+    videoCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md },
+    videoCardTitle: { ...typography.bodyBold, color: colors.textPrimary },
+    videoCardSub: { ...typography.caption, color: colors.textSecondary, marginTop: 2, maxWidth: 240 },
+    videoPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.primaryGlow,
+        borderRadius: borderRadius.full,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 6,
+    },
+    videoPillText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    sectionTitle: { color: colors.textPrimary, marginBottom: spacing.md, fontSize: 24, lineHeight: 30, fontWeight: '800' },
     exerciseCard: { marginBottom: spacing.sm },
     exerciseRow: { flexDirection: 'row', alignItems: 'center' },
     exerciseIndex: {
@@ -172,7 +223,7 @@ const styles = StyleSheet.create({
     },
     exerciseIndexText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
     exerciseInfo: { flex: 1 },
-    exerciseName: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+    exerciseName: { color: colors.textPrimary, fontWeight: '700', fontSize: 18, lineHeight: 23 },
     exerciseMeta: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
     exerciseDetail: { ...typography.caption, color: colors.textSecondary },
     exerciseWeight: { ...typography.caption, color: colors.primary, fontWeight: '600' },
@@ -192,6 +243,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         flexDirection: 'row',
+        gap: spacing.sm,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         paddingBottom: spacing.xxxl,

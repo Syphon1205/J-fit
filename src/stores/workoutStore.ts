@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { appStorage } from '../utils/Storage';
 
 export interface Exercise {
     id: string;
@@ -31,6 +33,8 @@ export interface WorkoutLog {
     duration: number;
     caloriesBurned: number;
     completed: boolean;
+    completedSets?: number;
+    volumeKg?: number;
 }
 
 interface TimerState {
@@ -49,7 +53,7 @@ interface WorkoutState {
     weeklySchedule: Record<string, string>;
     startWorkout: (workout: Workout) => void;
     completeExercise: (index: number) => void;
-    endWorkout: () => void;
+    endWorkout: (elapsedSeconds?: number) => void;
     logWorkout: (log: WorkoutLog) => void;
     reset: () => void;
 }
@@ -304,31 +308,21 @@ const sampleWorkouts: Workout[] = [
     },
 ];
 
-const sampleLogs: WorkoutLog[] = [
-    { id: 'l1', workoutId: '1', workoutName: 'Push Day', date: '2026-03-01', duration: 58, caloriesBurned: 435, completed: true },
-    { id: 'l2', workoutId: '3', workoutName: 'Leg Day', date: '2026-02-28', duration: 62, caloriesBurned: 540, completed: true },
-    { id: 'l3', workoutId: '2', workoutName: 'Pull Day', date: '2026-02-27', duration: 48, caloriesBurned: 365, completed: true },
-    { id: 'l4', workoutId: '4', workoutName: 'HIIT Cardio', date: '2026-02-26', duration: 26, caloriesBurned: 360, completed: true },
-    { id: 'l5', workoutId: '1', workoutName: 'Push Day', date: '2026-02-25', duration: 55, caloriesBurned: 420, completed: true },
-    { id: 'l6', workoutId: '5', workoutName: 'Morning Yoga', date: '2026-02-24', duration: 32, caloriesBurned: 155, completed: true },
-    { id: 'l7', workoutId: '3', workoutName: 'Leg Day', date: '2026-02-23', duration: 60, caloriesBurned: 510, completed: true },
-    { id: 'l8', workoutId: '11', workoutName: 'Kettlebell Circuit', date: '2026-02-22', duration: 37, caloriesBurned: 390, completed: true },
-    { id: 'l9', workoutId: '7', workoutName: 'Full Body Power', date: '2026-02-21', duration: 68, caloriesBurned: 600, completed: true },
-    { id: 'l10', workoutId: '2', workoutName: 'Pull Day', date: '2026-02-20', duration: 52, caloriesBurned: 380, completed: true },
-    { id: 'l11', workoutId: '9', workoutName: 'Sprint Intervals', date: '2026-02-19', duration: 32, caloriesBurned: 430, completed: true },
-    { id: 'l12', workoutId: '8', workoutName: 'Upper Body', date: '2026-02-18', duration: 47, caloriesBurned: 345, completed: true },
-    { id: 'l13', workoutId: '12', workoutName: 'Arms & Shoulders', date: '2026-02-17', duration: 42, caloriesBurned: 285, completed: true },
-    { id: 'l14', workoutId: '3', workoutName: 'Leg Day', date: '2026-02-16', duration: 61, caloriesBurned: 525, completed: true },
-    { id: 'l15', workoutId: '13', workoutName: '5K Run Prep', date: '2026-02-15', duration: 46, caloriesBurned: 465, completed: true },
-    { id: 'l16', workoutId: '1', workoutName: 'Push Day', date: '2026-02-14', duration: 57, caloriesBurned: 425, completed: true },
-    { id: 'l17', workoutId: '10', workoutName: 'Mobility Flow', date: '2026-02-13', duration: 41, caloriesBurned: 122, completed: true },
-    { id: 'l18', workoutId: '14', workoutName: 'Olympic Lifting', date: '2026-02-12', duration: 73, caloriesBurned: 510, completed: true },
-    { id: 'l19', workoutId: '4', workoutName: 'HIIT Cardio', date: '2026-02-11', duration: 27, caloriesBurned: 355, completed: true },
-    { id: 'l20', workoutId: '6', workoutName: 'Core Blast', date: '2026-02-10', duration: 22, caloriesBurned: 208, completed: true },
-    { id: 'l21', workoutId: '2', workoutName: 'Pull Day', date: '2026-02-09', duration: 50, caloriesBurned: 375, completed: true },
-];
+const sampleLogs: WorkoutLog[] = [];
 
-export const useWorkoutStore = create<WorkoutState>((set) => ({
+const parseFirstNumber = (value?: string): number => {
+    if (!value) return 0;
+    const match = value.match(/\d+(\.\d+)?/);
+    return match ? Number(match[0]) : 0;
+};
+
+const parseWeightKg = (value?: string): number => {
+    if (!value || value.toLowerCase() === 'bw') return 0;
+    const amount = parseFirstNumber(value);
+    return value.toLowerCase().includes('lb') ? Math.round(amount / 2.20462) : amount;
+};
+
+export const useWorkoutStore = create<WorkoutState>()(persist((set) => ({
     workouts: sampleWorkouts,
     workoutLogs: sampleLogs,
     activeWorkout: null,
@@ -350,8 +344,17 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
     },
 
     startWorkout: (workout: Workout) => {
+        try {
+            const { useSessionStore } = require('./sessionStore');
+            useSessionStore.getState().startSession(workout);
+        } catch {
+            // Session store is persisted separately; activeWorkout remains the UI fallback.
+        }
         set({
-            activeWorkout: workout,
+            activeWorkout: {
+                ...workout,
+                exercises: workout.exercises.map((exercise) => ({ ...exercise, completed: false })),
+            },
             timer: {
                 isRunning: true,
                 currentTime: 0,
@@ -365,6 +368,18 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
     completeExercise: (index: number) => {
         set((state) => {
             if (!state.activeWorkout) return state;
+            const exercise = state.activeWorkout.exercises[index];
+            try {
+                const { useSessionStore } = require('./sessionStore');
+                const session = useSessionStore.getState();
+                if (!session.activeSession) session.startSession(state.activeWorkout);
+                session.logSet(state.activeWorkout, {
+                    repsCompleted: parseFirstNumber(exercise?.reps) || 1,
+                    weightKg: parseWeightKg(exercise?.weight) || undefined,
+                });
+            } catch {
+                // Keep the workout UI responsive even if the production session engine is unavailable.
+            }
             const exercises = [...state.activeWorkout.exercises];
             exercises[index] = { ...exercises[index], completed: true };
             return {
@@ -374,18 +389,57 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
         });
     },
 
-    endWorkout: () => {
+    endWorkout: (elapsedSeconds) => {
         set((state) => {
             if (!state.activeWorkout) return state;
+            const finalSeconds = Math.max(0, elapsedSeconds ?? state.timer.currentTime);
+            const finalMinutes = Math.max(1, Math.floor(finalSeconds / 60));
             const newLog: WorkoutLog = {
                 id: `l${Date.now()}`,
                 workoutId: state.activeWorkout.id,
                 workoutName: state.activeWorkout.name,
                 date: new Date().toISOString().split('T')[0],
-                duration: Math.floor(state.timer.currentTime / 60),
+                duration: finalMinutes,
                 caloriesBurned: state.activeWorkout.calories,
                 completed: true,
             };
+
+            try {
+                const { useSessionStore } = require('./sessionStore');
+                const session = useSessionStore.getState().activeSession;
+                const completedSets = session?.loggedSets.length ?? 0;
+                const volumeKg = Math.round(session?.loggedSets.reduce((sum: number, loggedSet: { weightKg?: number; repsCompleted: number }) => sum + (loggedSet.weightKg ?? 0) * loggedSet.repsCompleted, 0) ?? 0);
+                newLog.completedSets = completedSets;
+                newLog.volumeKg = volumeKg;
+                useSessionStore.getState().completeSession(state.activeWorkout);
+
+                const { writeCompletedWorkoutToHealth } = require('../utils/HealthEngine');
+                void writeCompletedWorkoutToHealth({
+                    workoutName: state.activeWorkout.name,
+                    startedAt: session?.startedAt ?? new Date(Date.now() - finalSeconds * 1000).toISOString(),
+                    endedAt: new Date().toISOString(),
+                    durationMinutes: finalMinutes,
+                    calories: state.activeWorkout.calories,
+                    workoutType: state.activeWorkout.category === 'cardio' ? 'running' : 'strength_training',
+                });
+            } catch {
+                // Health sync should never block local workout completion.
+            }
+
+            try {
+                const { useProgressStore } = require('./progressStore');
+                const day = new Date().getDay(); // 0 Sun ... 6 Sat
+                const idx = (day + 6) % 7; // 0 Mon ... 6 Sun
+                const progress = useProgressStore.getState();
+                const weeklyWorkoutMinutes = [...progress.weeklyWorkoutMinutes];
+                const weeklyCalories = [...progress.weeklyCalories];
+                weeklyWorkoutMinutes[idx] = (weeklyWorkoutMinutes[idx] || 0) + finalMinutes;
+                weeklyCalories[idx] = (weeklyCalories[idx] || 0) + state.activeWorkout.calories;
+                useProgressStore.setState({ weeklyWorkoutMinutes, weeklyCalories });
+            } catch (e) {
+                console.warn('Failed to sync progress stats', e);
+            }
+
             return {
                 activeWorkout: null,
                 timer: { isRunning: false, currentTime: 0, totalTime: 0, isRest: false, currentExerciseIndex: 0 },
@@ -403,4 +457,13 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
     reset: () => {
         set({ workoutLogs: [], activeWorkout: null, timer: { isRunning: false, currentTime: 0, totalTime: 0, isRest: false, currentExerciseIndex: 0 } });
     },
+}), {
+    name: 'jfit-workouts',
+    storage: createJSONStorage(() => appStorage),
+    partialize: (state) => ({
+        workoutLogs: state.workoutLogs,
+        activeWorkout: state.activeWorkout,
+        timer: state.timer,
+        weeklySchedule: state.weeklySchedule,
+    }),
 }));

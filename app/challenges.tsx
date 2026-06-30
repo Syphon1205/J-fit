@@ -11,6 +11,7 @@ import { Card } from '../src/components/ui';
 import { useChallengesStore } from '../src/stores/challengesStore';
 import { useThemeColors } from '../src/hooks/useThemeColors';
 import { useStreak } from '../src/hooks/useStreak';
+import { safeBack } from '../src/utils/navigation';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -31,7 +32,7 @@ export default function ChallengesScreen() {
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
             {/* Header */}
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
+                <TouchableOpacity onPress={() => safeBack(router, '/')} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
                     <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: colors.textPrimary }]}>Challenges</Text>

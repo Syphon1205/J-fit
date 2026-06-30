@@ -1,8 +1,10 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { appStorage } from '../utils/Storage';
 
 export interface Notification {
     id: string;
-    type: 'workout' | 'nutrition' | 'achievement' | 'reminder' | 'sync';
+    type: 'workout' | 'achievement' | 'reminder' | 'sync';
     title: string;
     body: string;
     time: string;
@@ -16,9 +18,9 @@ interface NotificationsState {
     unreadCount: number;
     markRead: (id: string) => void;
     markAllRead: () => void;
+    reset: () => void;
     settings: {
         workoutReminders: boolean;
-        nutritionReminders: boolean;
         achievements: boolean;
         syncAlerts: boolean;
         weeklyReport: boolean;
@@ -26,18 +28,9 @@ interface NotificationsState {
     updateSetting: (key: string, value: boolean) => void;
 }
 
-const sampleNotifications: Notification[] = [
-    { id: 'n1', type: 'achievement', title: 'New PR! 🏆', body: 'You hit 100kg on Bench Press — a new personal record!', time: '10 min ago', read: false, icon: 'trophy', color: '#F59E0B' },
-    { id: 'n2', type: 'workout', title: 'Workout Reminder', body: 'Push Day is scheduled for today at 6:00 PM. Ready to crush it?', time: '2 hours ago', read: false, icon: 'barbell', color: '#00E5C7' },
-    { id: 'n3', type: 'sync', title: 'Apple Health Synced', body: 'Your activity data has been synced — 10,100 steps recorded.', time: '3 hours ago', read: false, icon: 'heart', color: '#FF2D55' },
-    { id: 'n4', type: 'nutrition', title: 'Protein Goal Met ✅', body: "You've hit your daily protein goal of 140g. Great work!", time: '5 hours ago', read: true, icon: 'nutrition', color: '#A78BFA' },
-    { id: 'n5', type: 'reminder', title: 'Log Your Meals', body: "Don't forget to log dinner to keep your nutrition on track.", time: 'Yesterday', read: true, icon: 'restaurant', color: '#10B981' },
-    { id: 'n6', type: 'achievement', title: '6-Day Streak! 🔥', body: "You've worked out 6 days in a row. Keep going for the weekly badge!", time: 'Yesterday', read: true, icon: 'flame', color: '#EF4444' },
-    { id: 'n7', type: 'sync', title: 'Strava Activity Imported', body: '5.2km run imported · 28:45 · 312 cal burned', time: '2 days ago', read: true, icon: 'bicycle', color: '#FC4C02' },
-    { id: 'n8', type: 'workout', title: 'Weekly Summary Ready', body: 'You trained 5 days and burned 2,275 calories this week!', time: '3 days ago', read: true, icon: 'stats-chart', color: '#3B82F6' },
-];
+const sampleNotifications: Notification[] = [];
 
-export const useNotificationsStore = create<NotificationsState>((set) => ({
+export const useNotificationsStore = create<NotificationsState>()(persist((set) => ({
     notifications: sampleNotifications,
     unreadCount: sampleNotifications.filter((n) => !n.read).length,
 
@@ -53,9 +46,14 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
             unreadCount: 0,
         })),
 
+    reset: () =>
+        set({
+            notifications: [],
+            unreadCount: 0,
+        }),
+
     settings: {
         workoutReminders: true,
-        nutritionReminders: true,
         achievements: true,
         syncAlerts: true,
         weeklyReport: true,
@@ -65,4 +63,12 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
         set((state) => ({
             settings: { ...state.settings, [key]: value },
         })),
+}), {
+    name: 'jfit-notifications',
+    storage: createJSONStorage(() => appStorage),
+    partialize: (state) => ({
+        notifications: state.notifications,
+        unreadCount: state.unreadCount,
+        settings: state.settings,
+    }),
 }));

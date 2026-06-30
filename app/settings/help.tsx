@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { Card } from '../../src/components/ui';
+import { safeBack } from '../../src/utils/navigation';
 
 const faqs = [
     { q: 'How do I connect my Apple Watch?', a: 'Go to Profile → Connected Devices → Apple Health and toggle it on. You\'ll be prompted to grant HealthKit permissions. Your Apple Watch automatically syncs through Apple Health.' },
@@ -14,7 +15,7 @@ const faqs = [
     { q: 'Can I create custom workouts?', a: 'Custom workouts are coming in the next update. For now, you can modify the pre-built programs to fit your needs.' },
     { q: 'How is my data stored?', a: 'All your fitness data is stored securely on your device. Health data synced from wearables stays on-device unless you explicitly export it.' },
     { q: 'How do I log my weight?', a: 'Go to the Progress tab and tap the "+" button to log a new weight entry. It will appear on your weight trend chart immediately.' },
-    { q: 'How do I log a meal?', a: 'Go to the Nutrition tab and tap "Log Meal" on any meal card to add custom food items with calorie and macro information.' },
+    { q: 'Where does watch data come from?', a: 'Connect Apple Health or Health Connect in Settings. Apple Watch, Fitbit, and Google wearables should sync there first, then Cunningham Fitness imports the clean health snapshot.' },
     { q: 'Can I sync with Strava?', a: 'Yes! Go to Profile → Connected Devices → Strava and tap Connect. Your runs, rides, and swims will import automatically.' },
 ];
 
@@ -25,7 +26,7 @@ export default function HelpScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => safeBack(router, '/profile')} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Help & Support</Text>

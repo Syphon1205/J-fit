@@ -1,15 +1,38 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
+type AppOAuth = {
+    google?: {
+        expoClientId?: string;
+        webClientId?: string;
+        iosClientId?: string;
+        androidClientId?: string;
+    };
+    github?: {
+        clientId?: string;
+    };
+};
+
+const oauthFromConfig = (Constants.expoConfig?.extra?.oauth || {}) as AppOAuth;
+
 // ─── Provider config ──────────────────────────────────────────────────────────
-// Fill in your CLIENT_IDs below after registering OAuth apps on each provider's portal.
+// Fill values via app.json > expo.extra.oauth
 
 export const OAUTH_CONFIG = {
     google: {
-        clientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+        clientId: oauthFromConfig.google?.webClientId || 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com',
+        expoClientId: oauthFromConfig.google?.expoClientId || 'YOUR_GOOGLE_EXPO_CLIENT_ID.apps.googleusercontent.com',
+        iosClientId: oauthFromConfig.google?.iosClientId || 'YOUR_GOOGLE_IOS_CLIENT_ID.apps.googleusercontent.com',
+        androidClientId: oauthFromConfig.google?.androidClientId || 'YOUR_GOOGLE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
         // Generate at: https://console.cloud.google.com/  →  APIs & Services → Credentials
+    },
+    github: {
+        clientId: oauthFromConfig.github?.clientId || 'YOUR_GITHUB_CLIENT_ID',
+        // Generate at: https://github.com/settings/developers
     },
     strava: {
         clientId: 'YOUR_STRAVA_CLIENT_ID',
@@ -44,6 +67,19 @@ export const OAUTH_CONFIG = {
 };
 
 export type OAuthProvider = keyof typeof OAUTH_CONFIG;
+
+export function resolveGoogleClientId() {
+    const platformClientId =
+        Platform.OS === 'ios'
+            ? OAUTH_CONFIG.google.iosClientId
+            : Platform.OS === 'android'
+                ? OAUTH_CONFIG.google.androidClientId
+                : OAUTH_CONFIG.google.expoClientId;
+
+    return platformClientId && !platformClientId.startsWith('YOUR_')
+        ? platformClientId
+        : OAUTH_CONFIG.google.expoClientId || OAUTH_CONFIG.google.clientId;
+}
 
 /** Launch OAuth flow for Strava / Fitbit / Garmin using expo-auth-session */
 export async function launchOAuth(provider: 'strava' | 'fitbit' | 'garmin'): Promise<{ success: boolean; token?: string; error?: string }> {

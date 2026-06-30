@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "J-Fit",
+    "name": "Cunningham Fitness",
     "slug": "j-fit",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
@@ -16,15 +16,32 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jfit.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized content to you.",
+        "NSUserNotificationsUsageDescription": "Cunningham Fitness sends timer and workout notifications so you can stay on track.",
+        "NSLocationWhenInUseUsageDescription": "Cunningham Fitness uses your location to track your run route and distance on the map.",
+        "NSLocalNetworkUsageDescription": "Cunningham Fitness uses the local network to sync athlete metrics with the trainer desktop app when you start Trainer Sync.",
+        "NSMotionUsageDescription": "Cunningham Fitness uses motion data to count your steps and improve run tracking.",
+        "NSBonjourServices": [
+          "_cf-trainer._tcp"
+        ],
+        "NSHealthShareUsageDescription": "Cunningham Fitness reads your health data (steps, heart rate, sleep, workouts) to give you a complete fitness overview.",
+        "NSHealthUpdateUsageDescription": "Cunningham Fitness saves your workouts and runs to Apple Health so all your data stays in sync.",
+        "NSCameraUsageDescription": "Cunningham Fitness uses your camera to check exercise posture and update your profile photo.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
               "jfit"
             ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "jfit"
+            ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -36,7 +53,11 @@
       },
       "package": "com.jfit.app",
       "permissions": [
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.BODY_SENSORS"
       ]
     },
     "web": {
@@ -44,13 +65,51 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-apple-authentication",
+      "expo-notifications",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Cunningham Fitness to use your camera to check exercise posture."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Cunningham Fitness to access your photos for your profile picture.",
+          "cameraPermission": "Allow Cunningham Fitness to use your camera to take a profile picture."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Cunningham Fitness to use your location to track your run route and distance.",
+          "locationWhenInUsePermission": "Allow Cunningham Fitness to use your location to track your run route and distance.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "0e0bc5cc-9326-4de6-8619-e3e3d0962332"
       },
-      "router": {}
+      "router": {},
+      "oauth": {
+        "google": {
+          "expoClientId": "YOUR_GOOGLE_EXPO_CLIENT_ID.apps.googleusercontent.com",
+          "webClientId": "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com",
+          "iosClientId": "YOUR_GOOGLE_IOS_CLIENT_ID.apps.googleusercontent.com",
+          "androidClientId": "YOUR_GOOGLE_ANDROID_CLIENT_ID.apps.googleusercontent.com"
+        },
+        "github": {
+          "clientId": "YOUR_GITHUB_CLIENT_ID"
+        }
+      },
+      "mapbox": {
+        "publicToken": ""
+      },
+      "mealVisionEndpoint": ""
     },
     "owner": "tannerd6113"
   }

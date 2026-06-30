@@ -1,9 +1,9 @@
 export const darkColors = {
     // Backgrounds
-    background: '#0D0D0D',
-    surface: '#1A1A2E',
-    surfaceLight: '#232340',
-    surfaceHover: '#2A2A4A',
+    background: '#080808',
+    surface: '#101010',
+    surfaceLight: '#171717',
+    surfaceHover: '#1E1E1E',
 
     // Primary accent - electric teal
     primary: '#00E5C7',
@@ -21,8 +21,8 @@ export const darkColors = {
 
     // Text
     textPrimary: '#FFFFFF',
-    textSecondary: '#9CA3AF',
-    textTertiary: '#6B7280',
+    textSecondary: '#A3A3A3',
+    textTertiary: '#737373',
     textInverse: '#0D0D0D',
 
     // Status
@@ -44,39 +44,37 @@ export const darkColors = {
     chart5: '#F59E0B',
 
     // Borders
-    border: 'rgba(255, 255, 255, 0.08)',
-    borderLight: 'rgba(255, 255, 255, 0.15)',
+    border: 'rgba(255, 255, 255, 0.10)',
+    borderLight: 'rgba(255, 255, 255, 0.18)',
 
     // Overlays
     overlay: 'rgba(0, 0, 0, 0.6)',
-    glass: 'rgba(26, 26, 46, 0.8)',
+    glass: 'rgba(16, 16, 16, 0.85)',
 };
 
 export const lightColors = {
     // Backgrounds
-    background: '#F5F5F7',
+    background: '#F8FAFC',
     surface: '#FFFFFF',
-    surfaceLight: '#F0F0F5',
-    surfaceHover: '#E8E8F0',
+    surfaceLight: '#F1F5F9',
+    surfaceHover: '#E2E8F0',
 
-    // Primary accent - electric teal (same brand, works on light too)
-    primary: '#00C5AB',
-    primaryDim: '#009E8B',
-    primaryGlow: 'rgba(0, 197, 171, 0.12)',
+    // Enterprise health accents
+    primary: '#1A73E8',
+    primaryDim: '#1557B0',
+    primaryGlow: 'rgba(26, 115, 232, 0.12)',
 
-    // Secondary accent - soft lavender
-    secondary: '#7C5CF6',
-    secondaryDim: '#6344D6',
-    secondaryGlow: 'rgba(124, 92, 246, 0.12)',
+    secondary: '#00BFA5',
+    secondaryDim: '#009E8B',
+    secondaryGlow: 'rgba(0, 191, 165, 0.12)',
 
-    // Tertiary - warm coral
-    tertiary: '#E8547A',
-    tertiaryDim: '#C83D62',
+    tertiary: '#8B5CF6',
+    tertiaryDim: '#6D45D6',
 
     // Text
-    textPrimary: '#0D0D1A',
-    textSecondary: '#4B5563',
-    textTertiary: '#9CA3AF',
+    textPrimary: '#1E293B',
+    textSecondary: '#64748B',
+    textTertiary: '#94A3B8',
     textInverse: '#FFFFFF',
 
     // Status (same as dark)
@@ -86,15 +84,15 @@ export const lightColors = {
     info: '#2563EB',
 
     // Activity ring colors
-    ringMove: '#E8547A',
-    ringExercise: '#00C5AB',
-    ringStand: '#7C5CF6',
+    ringMove: '#1A73E8',
+    ringExercise: '#00BFA5',
+    ringStand: '#8B5CF6',
 
     // Chart colors
-    chart1: '#00C5AB',
-    chart2: '#7C5CF6',
-    chart3: '#E8547A',
-    chart4: '#2563EB',
+    chart1: '#1A73E8',
+    chart2: '#00BFA5',
+    chart3: '#8B5CF6',
+    chart4: '#38BDF8',
     chart5: '#D97706',
 
     // Borders
@@ -106,16 +104,128 @@ export const lightColors = {
     glass: 'rgba(255, 255, 255, 0.85)',
 };
 
-// Default export stays dark for backward compat with any remaining direct imports
-export const colors = darkColors;
+type PersistedTheme = {
+    mode?: 'dark' | 'light' | 'auto';
+    preset?: 'noir' | 'classic' | 'punchy' | 'earthy' | 'studio' | 'solar' | 'fitness';
+};
+
+const presetAccents = {
+    noir: {
+        primary: '#FF2D7A',
+        primaryDim: '#B5175A',
+        secondary: '#F97316',
+        secondaryDim: '#EA580C',
+        tertiary: '#F8FAFC',
+        tertiaryDim: '#CBD5E1',
+    },
+    classic: {
+        primary: '#00E5C7',
+        primaryDim: '#00B89E',
+        secondary: '#A78BFA',
+        secondaryDim: '#8B6FE0',
+        tertiary: '#FF6B9D',
+        tertiaryDim: '#E05580',
+    },
+    punchy: {
+        primary: '#F97316',
+        primaryDim: '#EA580C',
+        secondary: '#0EA5E9',
+        secondaryDim: '#0284C7',
+        tertiary: '#EC4899',
+        tertiaryDim: '#DB2777',
+    },
+    earthy: {
+        primary: '#6FA84F',
+        primaryDim: '#5B8E40',
+        secondary: '#C2A878',
+        secondaryDim: '#A88E61',
+        tertiary: '#8D6E63',
+        tertiaryDim: '#75574E',
+    },
+    studio: {
+        primary: '#F8FAFC',
+        primaryDim: '#CBD5E1',
+        secondary: '#38BDF8',
+        secondaryDim: '#0284C7',
+        tertiary: '#FB7185',
+        tertiaryDim: '#E11D48',
+    },
+    solar: {
+        primary: '#FACC15',
+        primaryDim: '#EAB308',
+        secondary: '#14B8A6',
+        secondaryDim: '#0F766E',
+        tertiary: '#F43F5E',
+        tertiaryDim: '#E11D48',
+    },
+} as const;
+
+const readPersistedTheme = (): PersistedTheme => {
+    try {
+        const raw = globalThis?.localStorage?.getItem?.('jfit-theme');
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed?.state || {};
+    } catch {
+        return {};
+    }
+};
+
+const persistedTheme = readPersistedTheme();
+const prefersDark = typeof window !== 'undefined'
+    ? window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    : false;
+const isLight = persistedTheme.mode === 'dark'
+    ? false
+    : persistedTheme.mode === 'auto'
+        ? !prefersDark
+        : true;
+const normalizedPreset = persistedTheme.preset === 'fitness' ? 'punchy' : persistedTheme.preset;
+const activePreset = normalizedPreset && presetAccents[normalizedPreset]
+    ? normalizedPreset
+    : 'noir';
+const activeAccent = {
+    ...presetAccents[activePreset],
+    ...(activePreset === 'classic'
+        ? {
+            primary: '#1A73E8',
+            primaryDim: '#1557B0',
+            secondary: '#00BFA5',
+            secondaryDim: '#009E8B',
+            tertiary: '#8B5CF6',
+            tertiaryDim: '#6D45D6',
+        }
+        : {}),
+};
+
+const applyAccent = <T extends typeof darkColors | typeof lightColors>(base: T) => ({
+    ...base,
+    primary: activeAccent.primary,
+    primaryDim: activeAccent.primaryDim,
+    primaryGlow: `${activeAccent.primary}26`,
+    secondary: activeAccent.secondary,
+    secondaryDim: activeAccent.secondaryDim,
+    secondaryGlow: `${activeAccent.secondary}26`,
+    tertiary: activeAccent.tertiary,
+    tertiaryDim: activeAccent.tertiaryDim,
+    ringMove: activeAccent.tertiary,
+    ringExercise: activeAccent.primary,
+    ringStand: activeAccent.secondary,
+    chart1: activeAccent.primary,
+    chart2: activeAccent.secondary,
+    chart3: activeAccent.tertiary,
+});
+
+// Global tokens used by existing screens/styles
+export const colors = applyAccent(isLight ? lightColors : darkColors);
 
 export const gradients = {
-    primary: ['#00E5C7', '#00B89E'] as const,
-    secondary: ['#A78BFA', '#8B6FE0'] as const,
-    tertiary: ['#FF6B9D', '#E05580'] as const,
-    surface: ['#1A1A2E', '#16213E'] as const,
-    dark: ['#0D0D0D', '#1A1A2E'] as const,
-    cardGlow: ['rgba(0, 229, 199, 0.05)', 'rgba(167, 139, 250, 0.05)'] as const,
+    primary: [activeAccent.primary, activeAccent.primaryDim] as const,
+    secondary: [activeAccent.secondary, activeAccent.secondaryDim] as const,
+    tertiary: [activeAccent.tertiary, activeAccent.tertiaryDim] as const,
+    surface: isLight ? (['#FFFFFF', '#F5F5F7'] as const) : (['#101010', '#171717'] as const),
+    dark: isLight ? (['#F5F5F7', '#FFFFFF'] as const) : (['#080808', '#101010'] as const),
+    cardGlow: [`${activeAccent.primary}0D`, `${activeAccent.secondary}0D`] as const,
 };
 
 export const lightGradients = {

@@ -7,21 +7,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
-import { Button } from '../../src/components/ui';
+import { BackButton, Button } from '../../src/components/ui';
 import { useNutritionStore } from '../../src/stores/nutritionStore';
+import { safeBack } from '../../src/utils/navigation';
 
 const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function LogMealScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams<{ meal?: string }>();
+    const params = useLocalSearchParams<{ meal?: string; name?: string; calories?: string; protein?: string; carbs?: string; fat?: string }>();
     const { logMealItem } = useNutritionStore();
     const [mealType, setMealType] = useState(params.meal || 'Breakfast');
-    const [foodName, setFoodName] = useState('');
-    const [calories, setCalories] = useState('');
-    const [protein, setProtein] = useState('');
-    const [carbs, setCarbs] = useState('');
-    const [fat, setFat] = useState('');
+    const [foodName, setFoodName] = useState(params.name || '');
+    const [calories, setCalories] = useState(params.calories || '');
+    const [protein, setProtein] = useState(params.protein || '');
+    const [carbs, setCarbs] = useState(params.carbs || '');
+    const [fat, setFat] = useState(params.fat || '');
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
@@ -40,18 +41,16 @@ export default function LogMealScreen() {
         });
         await new Promise((r) => setTimeout(r, 500));
         setSaving(false);
-        router.back();
+        safeBack(router, '/nutrition');
     };
 
     return (
         <SafeAreaView style={styles.container}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <View style={styles.topBar}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-                        <Ionicons name="close" size={22} color={colors.textPrimary} />
-                    </TouchableOpacity>
+                    <BackButton fallback="/nutrition" />
                     <Text style={styles.title}>Log Meal</Text>
-                    <View style={{ width: 36 }} />
+                    <View style={{ width: 40 }} />
                 </View>
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                     <View style={styles.content}>
@@ -133,7 +132,7 @@ export default function LogMealScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
-    closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    scanBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
     title: { ...typography.h3, color: colors.textPrimary },
     content: { paddingHorizontal: spacing.xl },
     label: { ...typography.captionBold, color: colors.textTertiary, letterSpacing: 0.5, marginBottom: spacing.sm, marginTop: spacing.lg },

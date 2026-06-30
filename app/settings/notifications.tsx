@@ -8,10 +8,10 @@ import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { Card } from '../../src/components/ui';
 import { useNotificationsStore } from '../../src/stores/notificationsStore';
+import { safeBack } from '../../src/utils/navigation';
 
 const settingRows = [
     { key: 'workoutReminders', label: 'Workout Reminders', desc: 'Daily reminders at your scheduled workout time', icon: 'barbell-outline', color: colors.primary },
-    { key: 'nutritionReminders', label: 'Nutrition Reminders', desc: 'Reminders to log meals and hit your goals', icon: 'nutrition-outline', color: colors.secondary },
     { key: 'achievements', label: 'Achievements', desc: 'Celebrate PRs and milestones', icon: 'trophy-outline', color: colors.warning },
     { key: 'syncAlerts', label: 'Sync Alerts', desc: 'Get notified when wearable data syncs', icon: 'sync-outline', color: colors.info },
     { key: 'weeklyReport', label: 'Weekly Report', desc: 'Monday summary of last week\'s activity', icon: 'stats-chart-outline', color: colors.success },
@@ -24,7 +24,7 @@ export default function NotificationSettingsScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => safeBack(router, '/profile')} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Notifications</Text>
@@ -43,7 +43,7 @@ export default function NotificationSettingsScreen() {
                                 <Text style={styles.rowDesc}>{row.desc}</Text>
                             </View>
                             <Switch
-                                value={settings[row.key as keyof typeof settings]}
+                                value={Boolean(settings[row.key as keyof typeof settings])}
                                 onValueChange={(v) => updateSetting(row.key, v)}
                                 trackColor={{ false: colors.surfaceLight, true: colors.primary + '60' }}
                                 thumbColor={settings[row.key as keyof typeof settings] ? colors.primary : colors.textTertiary}

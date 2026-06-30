@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, typography, borderRadius, spacing } from '../../theme';
+import { useThemeStore } from '../../stores/themeStore';
+import { getPresetColors } from '../../theme/presets';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'outline';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -34,6 +36,8 @@ export const Button: React.FC<ButtonProps> = ({
     icon,
     style,
 }) => {
+    const { preset } = useThemeStore();
+    const presetAccent = getPresetColors(preset);
     const sizeStyles = sizeMap[size];
 
     if (variant === 'primary') {
@@ -45,7 +49,7 @@ export const Button: React.FC<ButtonProps> = ({
                 style={[styles.base, style]}
             >
                 <LinearGradient
-                    colors={disabled ? ['#333', '#333'] : [colors.primary, colors.primaryDim]}
+                    colors={disabled ? ['#333', '#333'] : [presetAccent.primary, presetAccent.primaryDim]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={[styles.gradient, sizeStyles.container]}
@@ -55,7 +59,7 @@ export const Button: React.FC<ButtonProps> = ({
                     ) : (
                         <>
                             {icon}
-                            <Text style={[styles.textPrimary, sizeStyles.text]}>{title}</Text>
+                            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.textPrimary, sizeStyles.text]}>{title}</Text>
                         </>
                     )}
                 </LinearGradient>
@@ -78,15 +82,19 @@ export const Button: React.FC<ButtonProps> = ({
         >
             {loading ? (
                 <ActivityIndicator
-                    color={variant === 'ghost' ? colors.primary : colors.textPrimary}
+                    color={variant === 'ghost' ? presetAccent.primary : colors.textPrimary}
                     size="small"
                 />
             ) : (
                 <>
                     {icon}
                     <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
                         style={[
                             variantStyles[variant]?.text,
+                            variant === 'ghost' ? { color: presetAccent.primary } : null,
                             sizeStyles.text,
                         ]}
                     >
@@ -120,6 +128,7 @@ const variantStyles: Record<string, { container: ViewStyle; text: TextStyle }> =
         },
         text: {
             color: colors.textPrimary,
+            textAlign: 'center',
         },
     },
     ghost: {
@@ -128,6 +137,7 @@ const variantStyles: Record<string, { container: ViewStyle; text: TextStyle }> =
         },
         text: {
             color: colors.primary,
+            textAlign: 'center',
         },
     },
     outline: {
@@ -138,6 +148,7 @@ const variantStyles: Record<string, { container: ViewStyle; text: TextStyle }> =
         },
         text: {
             color: colors.textPrimary,
+            textAlign: 'center',
         },
     },
 };
@@ -157,6 +168,7 @@ const styles = StyleSheet.create({
     textPrimary: {
         color: colors.textInverse,
         fontWeight: '700',
+        textAlign: 'center',
     },
     disabled: {
         opacity: 0.5,

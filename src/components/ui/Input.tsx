@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, StyleSheet, ViewStyle } from 'react-native';
+import { View, TextInput, Text, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
 import { colors, typography, borderRadius, spacing } from '../../theme';
 
 interface InputProps {
@@ -10,6 +10,11 @@ interface InputProps {
     secureTextEntry?: boolean;
     keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
     autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+    autoCorrect?: boolean;
+    returnKeyType?: TextInputProps['returnKeyType'];
+    onSubmitEditing?: TextInputProps['onSubmitEditing'];
+    blurOnSubmit?: boolean;
+    textContentType?: TextInputProps['textContentType'];
     error?: string;
     style?: ViewStyle;
     icon?: React.ReactNode;
@@ -23,6 +28,11 @@ export const Input: React.FC<InputProps> = ({
     secureTextEntry,
     keyboardType = 'default',
     autoCapitalize = 'sentences',
+    autoCorrect = false,
+    returnKeyType,
+    onSubmitEditing,
+    blurOnSubmit,
+    textContentType,
     error,
     style,
     icon,
@@ -49,6 +59,11 @@ export const Input: React.FC<InputProps> = ({
                     secureTextEntry={secureTextEntry}
                     keyboardType={keyboardType}
                     autoCapitalize={autoCapitalize}
+                    autoCorrect={autoCorrect}
+                    returnKeyType={returnKeyType}
+                    onSubmitEditing={onSubmitEditing}
+                    blurOnSubmit={blurOnSubmit}
+                    textContentType={textContentType}
                     selectionColor={colors.primary}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}

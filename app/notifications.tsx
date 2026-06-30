@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../src/theme';
 import { useNotificationsStore } from '../src/stores/notificationsStore';
+import { safeBack } from '../src/utils/navigation';
 
 export default function NotificationsScreen() {
     const router = useRouter();
@@ -15,7 +16,7 @@ export default function NotificationsScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => safeBack(router, '/')} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Notifications</Text>

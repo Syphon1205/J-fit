@@ -9,12 +9,11 @@ import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { Card, Button } from '../../src/components/ui';
 import { useWorkoutStore } from '../../src/stores/workoutStore';
 import { useProgressStore } from '../../src/stores/progressStore';
-import { useNutritionStore } from '../../src/stores/nutritionStore';
+import { safeBack } from '../../src/utils/navigation';
 
 const exportOptions = [
-    { id: 'workouts', label: 'Workout History', icon: 'barbell-outline', desc: 'All logged workouts with duration, calories, and exercises', color: colors.primary },
+    { id: 'workouts', label: 'Workout History', icon: 'barbell-outline', desc: 'All logged workouts with duration and exercises', color: colors.primary },
     { id: 'progress', label: 'Progress Data', icon: 'trending-up-outline', desc: 'Weight history, measurements, and personal records', color: colors.secondary },
-    { id: 'nutrition', label: 'Nutrition Data', icon: 'nutrition-outline', desc: 'Meal logs and macro tracking history', color: colors.tertiary },
 ];
 
 export default function ExportScreen() {
@@ -35,7 +34,7 @@ export default function ExportScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => safeBack(router, '/profile')} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Export Data</Text>

@@ -22,7 +22,8 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
 }) => {
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference * (1 - Math.min(progress, 1));
+    const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(progress, 1)) : 0;
+    const strokeDashoffset = circumference * (1 - safeProgress);
 
     return (
         <View style={[styles.container, { width: size, height: size }]}>

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { appStorage } from '../utils/Storage';
 
 export interface WeightEntry {
     date: string;
@@ -28,40 +30,41 @@ interface ProgressState {
     weeklyCalories: number[];
     weeklySteps: number[];
     weeklyWorkoutMinutes: number[];
+    setWeeklySteps: (steps: number[]) => void;
+    setWeeklyCalories: (calories: number[]) => void;
+    setWeeklyWorkoutMinutes: (minutes: number[]) => void;
     addWeight: (entry: WeightEntry) => void;
     addMeasurement: (entry: MeasurementEntry) => void;
+    addPersonalRecord: (record: PersonalRecord) => void;
     reset: () => void;
 }
 
-const sampleWeightHistory: WeightEntry[] = [
-    { date: '2026-01-05', value: 80.2 },
-    { date: '2026-01-12', value: 79.5 },
-    { date: '2026-01-19', value: 79.8 },
-    { date: '2026-01-26', value: 79.1 },
-    { date: '2026-02-02', value: 78.6 },
-    { date: '2026-02-09', value: 78.2 },
-    { date: '2026-02-16', value: 77.5 },
-    { date: '2026-02-23', value: 77.1 },
-    { date: '2026-03-02', value: 76.4 },
-];
+const sampleWeightHistory: WeightEntry[] = [];
 
-const samplePRs: PersonalRecord[] = [
-    { exercise: 'Bench Press', value: '100kg', date: '2026-02-20', previousValue: '95kg' },
-    { exercise: 'Squat', value: '140kg', date: '2026-02-15', previousValue: '130kg' },
-    { exercise: 'Deadlift', value: '160kg', date: '2026-02-22', previousValue: '150kg' },
-    { exercise: '5K Run', value: '22:30', date: '2026-02-18', previousValue: '24:15' },
-];
+const samplePRs: PersonalRecord[] = [];
 
-export const useProgressStore = create<ProgressState>((set) => ({
+export const useProgressStore = create<ProgressState>()(persist((set) => ({
     weightHistory: sampleWeightHistory,
-    measurements: [
-        { date: '2026-02-01', chest: 102, waist: 82, hips: 98, arms: 36, thighs: 58 },
-        { date: '2026-03-01', chest: 104, waist: 80, hips: 97, arms: 37, thighs: 59 },
-    ],
+    measurements: [],
     personalRecords: samplePRs,
-    weeklyCalories: [2450, 2680, 2320, 2550, 2790, 2410, 2600],
-    weeklySteps: [8500, 12300, 9800, 11200, 7600, 15400, 10100],
-    weeklyWorkoutMinutes: [55, 50, 60, 25, 55, 30, 0],
+    weeklyCalories: [0, 0, 0, 0, 0, 0, 0],
+    weeklySteps: [0, 0, 0, 0, 0, 0, 0],
+    weeklyWorkoutMinutes: [0, 0, 0, 0, 0, 0, 0],
+
+    setWeeklySteps: (steps) =>
+        set(() => ({
+            weeklySteps: steps.slice(0, 7),
+        })),
+
+    setWeeklyCalories: (calories) =>
+        set(() => ({
+            weeklyCalories: calories.slice(0, 7),
+        })),
+
+    setWeeklyWorkoutMinutes: (minutes) =>
+        set(() => ({
+            weeklyWorkoutMinutes: minutes.slice(0, 7),
+        })),
 
     addWeight: (entry) =>
         set((state) => ({
@@ -73,6 +76,11 @@ export const useProgressStore = create<ProgressState>((set) => ({
             measurements: [...state.measurements, entry],
         })),
 
+    addPersonalRecord: (record) =>
+        set((state) => ({
+            personalRecords: [record, ...state.personalRecords],
+        })),
+
     reset: () =>
         set({
             weightHistory: [],
@@ -82,4 +90,15 @@ export const useProgressStore = create<ProgressState>((set) => ({
             weeklySteps: [0, 0, 0, 0, 0, 0, 0],
             weeklyWorkoutMinutes: [0, 0, 0, 0, 0, 0, 0],
         }),
+}), {
+    name: 'jfit-progress',
+    storage: createJSONStorage(() => appStorage),
+    partialize: (state) => ({
+        weightHistory: state.weightHistory,
+        measurements: state.measurements,
+        personalRecords: state.personalRecords,
+        weeklyCalories: state.weeklyCalories,
+        weeklySteps: state.weeklySteps,
+        weeklyWorkoutMinutes: state.weeklyWorkoutMinutes,
+    }),
 }));

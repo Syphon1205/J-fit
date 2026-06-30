@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, TextInput,
-    Alert, KeyboardAvoidingView, Platform,
+    Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
-import { Button } from '../../src/components/ui';
+import { BackButton, Button } from '../../src/components/ui';
 import { useProgressStore } from '../../src/stores/progressStore';
+import { useAuthStore } from '../../src/stores/authStore';
+import { useThemeStore } from '../../src/stores/themeStore';
+import { safeBack } from '../../src/utils/navigation';
 
 export default function AddWeightScreen() {
     const router = useRouter();
     const { addWeight } = useProgressStore();
+    const updateProfile = useAuthStore((state) => state.updateProfile);
+    const preferredUnits = useThemeStore((state) => state.units);
     const [weight, setWeight] = useState('');
-    const [unit, setUnit] = useState<'kg' | 'lbs'>('kg');
+    const [unit, setUnit] = useState<'kg' | 'lbs'>(preferredUnits === 'imperial' ? 'lbs' : 'kg');
     const [note, setNote] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -26,25 +31,32 @@ export default function AddWeightScreen() {
         }
         setSaving(true);
         const kgValue = unit === 'lbs' ? val * 0.453592 : val;
+        const roundedKg = Math.round(kgValue * 10) / 10;
         const today = new Date().toISOString().split('T')[0];
-        addWeight({ date: today, value: kgValue });
+        addWeight({ date: today, value: roundedKg });
+        updateProfile({ weight: roundedKg });
         await new Promise((r) => setTimeout(r, 500));
         setSaving(false);
-        router.back();
+        safeBack(router, '/progress');
     };
 
     return (
         <SafeAreaView style={styles.container}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <View style={styles.topBar}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-                        <Ionicons name="close" size={22} color={colors.textPrimary} />
-                    </TouchableOpacity>
+                    <BackButton fallback="/progress" />
                     <Text style={styles.title}>Log Weight</Text>
                     <View style={{ width: 36 }} />
                 </View>
 
-                <View style={styles.content}>
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.content}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    contentInsetAdjustmentBehavior="automatic"
+                    bounces
+                >
                     {/* Unit toggle */}
                     <View style={styles.unitToggle}>
                         {(['kg', 'lbs'] as const).map((u) => (
@@ -99,7 +111,7 @@ export default function AddWeightScreen() {
                         size="lg"
                         style={{ marginTop: spacing.xl }}
                     />
-                </View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
@@ -107,10 +119,10 @@ export default function AddWeightScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    scroll: { flex: 1 },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
-    closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
     title: { ...typography.h3, color: colors.textPrimary },
-    content: { flex: 1, paddingHorizontal: spacing.xxl },
+    content: { flexGrow: 1, paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl },
     unitToggle: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: borderRadius.full, padding: 4, alignSelf: 'center', marginBottom: spacing.xxl, marginTop: spacing.xl },
     unitBtn: { paddingHorizontal: spacing.xxl, paddingVertical: spacing.sm, borderRadius: borderRadius.full },
     unitBtnActive: { backgroundColor: colors.primary },
