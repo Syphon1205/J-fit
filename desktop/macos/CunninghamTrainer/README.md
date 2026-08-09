@@ -22,7 +22,8 @@ swift run CunninghamTrainer
 From the repo root:
 
 ```bash
-npm run desktop:build
+swift build
+swift run CunninghamTrainer
 ```
 
 That creates:
@@ -34,7 +35,7 @@ desktop/macos/build/Cunningham Trainer.app
 To build and open it:
 
 ```bash
-npm run desktop:run
+open desktop/macos/build/Cunningham\ Trainer.app
 ```
 
 ## Pairing Flow
