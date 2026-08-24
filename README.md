@@ -1,6 +1,6 @@
 # J-fit
 
-J-fit is the Cunningham Fitness app: a cross-platform fitness, coaching, nutrition, progress, and trainer-sync experience built with Expo, React Native, Capacitor, and a native macOS trainer console.
+J-fit is the Cunningham Fitness app: a cross-platform fitness, coaching, nutrition, progress, and trainer-sync experience built with Expo, React Native, Capacitor, and a native macOS trainer console. Note: Some TypeScript-related references and archived assets still remain within the repository as part of the migration to a native Swift implementation.
 
 The app includes mobile and web screens for workouts, analytics, nutrition, readiness, run tracking, posture checks, trainer sync, settings, and profile management. It also includes a native macOS companion app for trainer-side athlete metric review.
 
