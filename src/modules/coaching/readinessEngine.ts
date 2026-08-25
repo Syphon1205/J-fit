@@ -155,39 +155,31 @@ function buildRationale(factors: ReadinessFactorBreakdown[]) {
     return rationale;
 }
 
-function buildUiCopy(result: Pick<DailyReadinessResult, 'band' | 'score' | 'action'>): DailyReadinessResult['uiCopy'] {
-    if (result.band === 'recovery') {
+function buildUiCopy(band: ReadinessBand, score: number, action: CoachingAction): DailyReadinessResult['uiCopy'] {
+    if (band === 'recovery') {
         return {
-            headline: `Capacity ${result.score}: Recovery first`,
+            headline: `Capacity ${score}: Recovery first`,
             body: 'Your recovery markers are suppressed. Shift today into a lower-stress training day.',
             cta: 'Accept De-load',
         };
     }
 
-    if (result.band === 'performance') {
+    if (band === 'performance') {
         return {
-            headline: `Capacity ${result.score}: Performance window`,
+            headline: `Capacity ${score}: Performance window`,
             body: 'Warm-ups permitting, today supports a top set, progression, or PR attempt.',
             cta: 'Enter PR Mode',
         };
     }
 
     return {
-        headline: `Capacity ${result.score}: On plan`,
+        headline: `Capacity ${score}: On plan`,
         body: 'Your signals support the scheduled session as written.',
-        cta: 'Run Today’s Plan',
+        cta: 'Run Today\'s Plan',
     };
 }
 
-export function calculateDailyPerformanceCapacity(input: DailyReadinessInput): DailyReadinessResult {
-    const optionalSignals = [
-        input.hrvDeltaPercent,
-        input.sorenessScore,
-        input.motivationScore,
-        input.trainingLoadLast72h,
-        input.nutritionCompliancePercent,
-    ].filter((value) => value != null).length;
-
+function computeFactorCandidates(input: DailyReadinessInput): WeightedFactor[] {
     const factorCandidates: WeightedFactor[] = [
         {
             key: 'sleep_quantity',
@@ -261,6 +253,10 @@ export function calculateDailyPerformanceCapacity(input: DailyReadinessInput): D
         if (factor) factorCandidates.push(factor);
     });
 
+    return factorCandidates;
+}
+
+function determineBandAndScore(factorCandidates: WeightedFactor[], input: DailyReadinessInput): { score: number; band: ReadinessBand; action: CoachingAction; rationale: string[] } {
     const totalWeight = factorCandidates.reduce((sum, factor) => sum + factor.weight, 0);
     const factors = factorCandidates.map((factor) => toFactor(factor, totalWeight));
 
@@ -281,58 +277,82 @@ export function calculateDailyPerformanceCapacity(input: DailyReadinessInput): D
     let band: ReadinessBand = 'baseline';
     let action: CoachingAction = 'execute';
 
+    const rationale: string[] = [];
+
     if (recoveryFlags >= 2 || score <= 44) {
         band = 'recovery';
         action = 'deload';
         score = Math.min(score, 44);
+        rationale.push('A reduced-stress session is the best trade-off for performance retention and recovery.');
     } else if (score >= 75 && !prSuppressed) {
         band = 'performance';
         action = 'push_pr';
-    }
-
-    const adjustment: ReadinessAdjustment =
-        band === 'recovery'
-            ? {
-                volumeScale: 0.65,
-                intensityScale: 0.92,
-                restSecondsDelta: 30,
-                allowPR: false,
-                removeTopSet: true,
-            }
-            : band === 'performance'
-                ? {
-                    volumeScale: 1,
-                    intensityScale: 1.03,
-                    restSecondsDelta: 0,
-                    allowPR: true,
-                    removeTopSet: false,
-                }
-                : {
-                    volumeScale: 1,
-                    intensityScale: 1,
-                    restSecondsDelta: 0,
-                    allowPR: false,
-                    removeTopSet: false,
-                };
-
-    const rationale = buildRationale(factors);
-
-    if (band === 'recovery') {
-        rationale.push('A reduced-stress session is the best trade-off for performance retention and recovery.');
-    } else if (band === 'performance') {
         rationale.push('If warm-up velocity feels sharp, expose a top set or PR attempt.');
     } else {
         rationale.push('Today is suitable for executing the programmed session without major changes.');
     }
 
+    return { score, band, action, rationale };
+}
+
+function computeAdjustment(band: ReadinessBand): ReadinessAdjustment {
+    if (band === 'recovery') {
+        return {
+            volumeScale: 0.65,
+            intensityScale: 0.92,
+            restSecondsDelta: 30,
+            allowPR: false,
+            removeTopSet: true,
+        };
+    }
+
+    if (band === 'performance') {
+        return {
+            volumeScale: 1,
+            intensityScale: 1.03,
+            restSecondsDelta: 0,
+            allowPR: true,
+            removeTopSet: false,
+        };
+    }
+
+    return {
+        volumeScale: 1,
+        intensityScale: 1,
+        restSecondsDelta: 0,
+        allowPR: false,
+        removeTopSet: false,
+    };
+}
+
+function computeConfidence(input: DailyReadinessInput): ConfidenceLevel {
+    const optionalSignalCount = [
+        input.hrvDeltaPercent,
+        input.sorenessScore,
+        input.motivationScore,
+        input.trainingLoadLast72h,
+        input.nutritionCompliancePercent,
+    ].filter((value) => value != null).length;
+
+    if (optionalSignalCount >= 4) return 'high';
+    if (optionalSignalCount >= 2) return 'medium';
+    return 'low';
+}
+
+export function calculateDailyPerformanceCapacity(input: DailyReadinessInput): DailyReadinessResult {
+    const factorCandidates = computeFactorCandidates(input);
+    const { score, band, action, rationale } = determineBandAndScore(factorCandidates, input);
+    const adjustment = computeAdjustment(band);
+    const confidence = computeConfidence(input);
+
     return {
         score,
         band,
         action,
-        confidence: confidenceForAvailableSignals(optionalSignals),
-        factors: factors.sort((a, b) => b.impact - a.impact),
+        confidence,
+        factors: factorCandidates.map((factor) => toFactor(factor, factorCandidates.reduce((sum, f) => sum + f.weight, 0))).sort((a, b) => b.impact - a.impact),
         rationale,
         adjustment,
-        uiCopy: buildUiCopy({ band, score, action }),
+        uiCopy: buildUiCopy(band, score, action),
     };
 }

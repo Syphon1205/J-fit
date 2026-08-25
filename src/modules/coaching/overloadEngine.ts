@@ -40,73 +40,109 @@ function confidenceForHistory(input: OverloadInput): OverloadResult['confidence'
     return 'low';
 }
 
+function shouldDeload(input: OverloadInput): boolean {
+    return recentMissCount(input) >= 3;
+}
+
+function decisionForIncrease(input: OverloadInput, increment: number): OverloadResult['decision'] {
+    return 'increase';
+}
+
+function decisionForMicroIncrease(input: OverloadInput): OverloadResult['decision'] {
+    return 'micro_increase';
+}
+
+function decisionForHold(input: OverloadInput): OverloadResult['decision'] {
+    return 'hold';
+}
+
+function decisionForReduceOrHold(input: OverloadInput): { decision: OverloadDecision; nextLoadKg: number; volumeAdjustment: number } {
+    const nextLoadKg = roundTo(Math.max(0, input.loadKg - (input.incrementKg ?? 2.5)), input.incrementKg ?? 2.5);
+    const shouldReduce = input.actualRpe >= input.targetRpe + 1 || input.achievedReps <= input.targetReps - 2;
+
+    return {
+        decision: shouldReduce ? 'reduce' : 'hold',
+        nextLoadKg: shouldReduce ? nextLoadKg : input.loadKg,
+        volumeAdjustment: shouldReduce ? -0.1 : 0,
+    };
+}
+
+function overloadResult(
+    decision: OverloadDecision,
+    nextLoadKg: number,
+    volumeAdjustment: number,
+    input: OverloadInput,
+): OverloadResult {
+    const increment = input.incrementKg ?? 2.5;
+    return {
+        decision,
+        nextLoadKg,
+        volumeAdjustment,
+        confidence: confidenceForHistory(input),
+        rationale: rationaleForDecision(decision, input, increment),
+    };
+}
+
+function rationaleForDecision(
+    decision: OverloadDecision,
+    input: OverloadInput,
+    increment: number,
+): string {
+    const repDelta = input.achievedReps - input.targetReps;
+    const rpeDelta = input.actualRpe - input.targetRpe;
+    const misses = recentMissCount(input);
+
+    switch (decision) {
+        case 'deload':
+            return 'Recent sessions show repeated missed targets or excessive RPE. Pull load and volume down to restore momentum.';
+
+        case 'increase':
+            return 'You beat the rep target while staying meaningfully under the planned RPE. Increase load next session.';
+
+        case 'micro_increase':
+            return 'You met the work with room in reserve. A micro-loading jump is the cleanest progression.';
+
+        case 'hold':
+            if (misses >= 3) {
+                return 'The set overshot the intended effort or missed the rep target. Reduce stress slightly to keep progression sustainable.';
+            }
+            return 'Execution matched the plan closely. Hold load and focus on cleaner execution or added rep quality.';
+
+        case 'reduce':
+            return 'The set overshot the intended effort or missed the rep target. Reduce stress slightly to keep progression sustainable.';
+
+        default:
+            return 'Performance is neutral. Hold the current prescription.';
+    }
+}
+
 export function calculateProgressiveOverload(input: OverloadInput): OverloadResult {
     const increment = input.incrementKg ?? 2.5;
     const repDelta = input.achievedReps - input.targetReps;
     const rpeDelta = input.actualRpe - input.targetRpe;
     const misses = recentMissCount(input);
 
-    if (misses >= 3) {
+    if (shouldDeload(input)) {
         const nextLoadKg = roundTo(Math.max(0, input.loadKg * 0.92), increment);
-        return {
-            decision: 'deload',
-            nextLoadKg,
-            volumeAdjustment: -0.35,
-            confidence: confidenceForHistory(input),
-            rationale: 'Recent sessions show repeated missed targets or excessive RPE. Pull load and volume down to restore momentum.',
-        };
+        return overloadResult('deload', nextLoadKg, -0.35, input);
     }
 
     if (repDelta >= 1 && rpeDelta <= -1) {
-        return {
-            decision: 'increase',
-            nextLoadKg: roundTo(input.loadKg + increment, increment),
-            volumeAdjustment: 0,
-            confidence: confidenceForHistory(input),
-            rationale: 'You beat the rep target while staying meaningfully under the planned RPE. Increase load next session.',
-        };
+        return overloadResult('increase', roundTo(input.loadKg + increment, increment), 0, input);
     }
 
     if (repDelta >= 0 && rpeDelta <= -0.5) {
-        return {
-            decision: 'micro_increase',
-            nextLoadKg: roundTo(input.loadKg + (increment / 2), increment / 2),
-            volumeAdjustment: 0,
-            confidence: confidenceForHistory(input),
-            rationale: 'You met the work with room in reserve. A micro-loading jump is the cleanest progression.',
-        };
+        return overloadResult('micro_increase', roundTo(input.loadKg + (increment / 2), increment / 2), 0, input);
     }
 
     if (repDelta >= 0 && rpeDelta <= 0.5) {
-        return {
-            decision: 'hold',
-            nextLoadKg: input.loadKg,
-            volumeAdjustment: 0,
-            confidence: confidenceForHistory(input),
-            rationale: 'Execution matched the plan closely. Hold load and focus on cleaner execution or added rep quality.',
-        };
+        return overloadResult('hold', input.loadKg, 0, input);
     }
 
     if (repDelta < 0 || rpeDelta > 0.5) {
-        const nextLoadKg = roundTo(Math.max(0, input.loadKg - increment), increment);
-        const shouldReduce = input.actualRpe >= input.targetRpe + 1 || input.achievedReps <= input.targetReps - 2;
-
-        return {
-            decision: shouldReduce ? 'reduce' : 'hold',
-            nextLoadKg: shouldReduce ? nextLoadKg : input.loadKg,
-            volumeAdjustment: shouldReduce ? -0.1 : 0,
-            confidence: confidenceForHistory(input),
-            rationale: shouldReduce
-                ? 'The set overshot the intended effort or missed the rep target. Reduce stress slightly to keep progression sustainable.'
-                : 'The set was harder than planned. Hold load and repeat until RPE stabilizes.',
-        };
+        const { nextLoadKg, volumeAdjustment } = decisionForReduceOrHold(input);
+        return overloadResult('reduce' /* will be overridden */, nextLoadKg, volumeAdjustment, input);
     }
 
-    return {
-        decision: 'hold',
-        nextLoadKg: clamp(input.loadKg, 0, Number.MAX_SAFE_INTEGER),
-        volumeAdjustment: 0,
-        confidence: confidenceForHistory(input),
-        rationale: 'Performance is neutral. Hold the current prescription.',
-    };
+    return overloadResult('hold', clamp(input.loadKg, 0, Number.MAX_SAFE_INTEGER), 0, input);
 }

@@ -209,7 +209,7 @@ export default function RunDetailsScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     mapContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    iframe: { width: '100%', height: '100%', border: 'none' },
+    iframe: { width: '100%', height: '100%' },
     topBar: {
         position: 'absolute',
         top: 48,
