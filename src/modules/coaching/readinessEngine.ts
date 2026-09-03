@@ -127,7 +127,7 @@ function scoreNutrition(value?: number) {
     return 34;
 }
 
-function confidenceForAvailableSignals(optionalSignalCount: number) {
+function confidenceForAvailableSignals(optionalSignalCount: number): ConfidenceLevel {
     if (optionalSignalCount >= 4) return 'high';
     if (optionalSignalCount >= 2) return 'medium';
     return 'low';
@@ -155,7 +155,7 @@ function buildRationale(factors: ReadinessFactorBreakdown[]) {
     return rationale;
 }
 
-function buildUiCopy(band: ReadinessBand, score: number, action: CoachingAction): DailyReadinessResult['uiCopy'] {
+function buildUiCopy(band: ReadinessBand, score: number): DailyReadinessResult['uiCopy'] {
     if (band === 'recovery') {
         return {
             headline: `Capacity ${score}: Recovery first`,
@@ -256,10 +256,10 @@ function computeFactorCandidates(input: DailyReadinessInput): WeightedFactor[] {
     return factorCandidates;
 }
 
-function determineBandAndScore(factorCandidates: WeightedFactor[], input: DailyReadinessInput): { score: number; band: ReadinessBand; action: CoachingAction; rationale: string[] } {
-    const totalWeight = factorCandidates.reduce((sum, factor) => sum + factor.weight, 0);
-    const factors = factorCandidates.map((factor) => toFactor(factor, totalWeight));
-
+function determineBandAndScore(
+    factors: ReadinessFactorBreakdown[],
+    input: DailyReadinessInput,
+): { score: number; band: ReadinessBand; action: CoachingAction } {
     const weightedScore = factors.reduce((sum, factor) => sum + factor.impact, 0);
 
     const recoveryFlags = [
@@ -277,22 +277,16 @@ function determineBandAndScore(factorCandidates: WeightedFactor[], input: DailyR
     let band: ReadinessBand = 'baseline';
     let action: CoachingAction = 'execute';
 
-    const rationale: string[] = [];
-
     if (recoveryFlags >= 2 || score <= 44) {
         band = 'recovery';
         action = 'deload';
         score = Math.min(score, 44);
-        rationale.push('A reduced-stress session is the best trade-off for performance retention and recovery.');
     } else if (score >= 75 && !prSuppressed) {
         band = 'performance';
         action = 'push_pr';
-        rationale.push('If warm-up velocity feels sharp, expose a top set or PR attempt.');
-    } else {
-        rationale.push('Today is suitable for executing the programmed session without major changes.');
     }
 
-    return { score, band, action, rationale };
+    return { score, band, action };
 }
 
 function computeAdjustment(band: ReadinessBand): ReadinessAdjustment {
@@ -325,7 +319,7 @@ function computeAdjustment(band: ReadinessBand): ReadinessAdjustment {
     };
 }
 
-function computeConfidence(input: DailyReadinessInput): ConfidenceLevel {
+export function calculateDailyPerformanceCapacity(input: DailyReadinessInput): DailyReadinessResult {
     const optionalSignalCount = [
         input.hrvDeltaPercent,
         input.sorenessScore,
@@ -334,25 +328,31 @@ function computeConfidence(input: DailyReadinessInput): ConfidenceLevel {
         input.nutritionCompliancePercent,
     ].filter((value) => value != null).length;
 
-    if (optionalSignalCount >= 4) return 'high';
-    if (optionalSignalCount >= 2) return 'medium';
-    return 'low';
-}
-
-export function calculateDailyPerformanceCapacity(input: DailyReadinessInput): DailyReadinessResult {
     const factorCandidates = computeFactorCandidates(input);
-    const { score, band, action, rationale } = determineBandAndScore(factorCandidates, input);
-    const adjustment = computeAdjustment(band);
-    const confidence = computeConfidence(input);
+    const totalWeight = factorCandidates.reduce((sum, factor) => sum + factor.weight, 0);
+    const factors = factorCandidates
+        .map((factor) => toFactor(factor, totalWeight))
+        .sort((a, b) => b.impact - a.impact);
+
+    const { score, band, action } = determineBandAndScore(factors, input);
+    const rationale = buildRationale(factors);
+
+    if (band === 'recovery') {
+        rationale.push('A reduced-stress session is the best trade-off for performance retention and recovery.');
+    } else if (band === 'performance') {
+        rationale.push('If warm-up velocity feels sharp, expose a top set or PR attempt.');
+    } else {
+        rationale.push('Today is suitable for executing the programmed session without major changes.');
+    }
 
     return {
         score,
         band,
         action,
-        confidence,
-        factors: factorCandidates.map((factor) => toFactor(factor, factorCandidates.reduce((sum, f) => sum + f.weight, 0))).sort((a, b) => b.impact - a.impact),
+        confidence: confidenceForAvailableSignals(optionalSignalCount),
+        factors,
         rationale,
-        adjustment,
-        uiCopy: buildUiCopy(band, score, action),
+        adjustment: computeAdjustment(band),
+        uiCopy: buildUiCopy(band, score),
     };
 }

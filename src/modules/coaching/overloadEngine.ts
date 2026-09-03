@@ -44,20 +44,13 @@ function shouldDeload(input: OverloadInput): boolean {
     return recentMissCount(input) >= 3;
 }
 
-function decisionForIncrease(input: OverloadInput, increment: number): OverloadResult['decision'] {
-    return 'increase';
-}
-
-function decisionForMicroIncrease(input: OverloadInput): OverloadResult['decision'] {
-    return 'micro_increase';
-}
-
-function decisionForHold(input: OverloadInput): OverloadResult['decision'] {
-    return 'hold';
-}
-
-function decisionForReduceOrHold(input: OverloadInput): { decision: OverloadDecision; nextLoadKg: number; volumeAdjustment: number } {
-    const nextLoadKg = roundTo(Math.max(0, input.loadKg - (input.incrementKg ?? 2.5)), input.incrementKg ?? 2.5);
+function decisionForReduceOrHold(input: OverloadInput): {
+    decision: Extract<OverloadDecision, 'reduce' | 'hold'>;
+    nextLoadKg: number;
+    volumeAdjustment: number;
+} {
+    const increment = input.incrementKg ?? 2.5;
+    const nextLoadKg = roundTo(Math.max(0, input.loadKg - increment), increment);
     const shouldReduce = input.actualRpe >= input.targetRpe + 1 || input.achievedReps <= input.targetReps - 2;
 
     return {
@@ -67,31 +60,10 @@ function decisionForReduceOrHold(input: OverloadInput): { decision: OverloadDeci
     };
 }
 
-function overloadResult(
-    decision: OverloadDecision,
-    nextLoadKg: number,
-    volumeAdjustment: number,
-    input: OverloadInput,
-): OverloadResult {
-    const increment = input.incrementKg ?? 2.5;
-    return {
-        decision,
-        nextLoadKg,
-        volumeAdjustment,
-        confidence: confidenceForHistory(input),
-        rationale: rationaleForDecision(decision, input, increment),
-    };
-}
-
 function rationaleForDecision(
     decision: OverloadDecision,
-    input: OverloadInput,
-    increment: number,
+    softHold: boolean,
 ): string {
-    const repDelta = input.achievedReps - input.targetReps;
-    const rpeDelta = input.actualRpe - input.targetRpe;
-    const misses = recentMissCount(input);
-
     switch (decision) {
         case 'deload':
             return 'Recent sessions show repeated missed targets or excessive RPE. Pull load and volume down to restore momentum.';
@@ -103,8 +75,8 @@ function rationaleForDecision(
             return 'You met the work with room in reserve. A micro-loading jump is the cleanest progression.';
 
         case 'hold':
-            if (misses >= 3) {
-                return 'The set overshot the intended effort or missed the rep target. Reduce stress slightly to keep progression sustainable.';
+            if (softHold) {
+                return 'The set was harder than planned. Hold load and repeat until RPE stabilizes.';
             }
             return 'Execution matched the plan closely. Hold load and focus on cleaner execution or added rep quality.';
 
@@ -116,11 +88,26 @@ function rationaleForDecision(
     }
 }
 
+function overloadResult(
+    decision: OverloadDecision,
+    nextLoadKg: number,
+    volumeAdjustment: number,
+    input: OverloadInput,
+    softHold = false,
+): OverloadResult {
+    return {
+        decision,
+        nextLoadKg,
+        volumeAdjustment,
+        confidence: confidenceForHistory(input),
+        rationale: rationaleForDecision(decision, softHold),
+    };
+}
+
 export function calculateProgressiveOverload(input: OverloadInput): OverloadResult {
     const increment = input.incrementKg ?? 2.5;
     const repDelta = input.achievedReps - input.targetReps;
     const rpeDelta = input.actualRpe - input.targetRpe;
-    const misses = recentMissCount(input);
 
     if (shouldDeload(input)) {
         const nextLoadKg = roundTo(Math.max(0, input.loadKg * 0.92), increment);
@@ -140,8 +127,8 @@ export function calculateProgressiveOverload(input: OverloadInput): OverloadResu
     }
 
     if (repDelta < 0 || rpeDelta > 0.5) {
-        const { nextLoadKg, volumeAdjustment } = decisionForReduceOrHold(input);
-        return overloadResult('reduce' /* will be overridden */, nextLoadKg, volumeAdjustment, input);
+        const { decision, nextLoadKg, volumeAdjustment } = decisionForReduceOrHold(input);
+        return overloadResult(decision, nextLoadKg, volumeAdjustment, input, decision === 'hold');
     }
 
     return overloadResult('hold', clamp(input.loadKg, 0, Number.MAX_SAFE_INTEGER), 0, input);
